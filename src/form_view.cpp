@@ -238,18 +238,33 @@ std::uint32_t find_arg_index(const ParseStorage& storage,
 }
 
 std::optional<int> parse_int(std::string_view text) {
-    if (!looks_like_integer(text))
+    if (text.empty())
         return std::nullopt;
-    if (!text.empty() && text.front() == '+')
-        text.remove_prefix(1);
 
-    int parsed = 0;
-    const char* begin = text.data();
-    const char* end = begin + text.size();
-    auto result = std::from_chars(begin, end, parsed);
-    if (result.ec == std::errc{} && result.ptr == end)
-        return parsed;
-    return std::nullopt;
+    bool negative = false;
+    if (text.front() == '+' || text.front() == '-') {
+        negative = text.front() == '-';
+        text.remove_prefix(1);
+        if (text.empty())
+            return std::nullopt;
+    }
+
+    std::uint64_t value = 0;
+    std::uint64_t limit = negative ? static_cast<std::uint64_t>(std::numeric_limits<int>::max()) + 1u
+                                   : static_cast<std::uint64_t>(std::numeric_limits<int>::max());
+    for (char ch : text) {
+        if (ch < '0' || ch > '9')
+            return std::nullopt;
+        std::uint64_t digit = static_cast<std::uint64_t>(ch - '0');
+        if (value > (limit - digit) / 10u)
+            return std::nullopt;
+        value = value * 10u + digit;
+    }
+
+    if (negative && value == limit)
+        return std::numeric_limits<int>::min();
+    int parsed = static_cast<int>(value);
+    return negative ? -parsed : parsed;
 }
 
 std::optional<float> parse_float(std::string_view text) {

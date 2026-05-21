@@ -27,51 +27,51 @@ Latest verified Plan 11 results on this machine:
 
 | Case | Result |
 | --- | ---: |
-| assets_10k | 264.33 MiB/s |
-| assets_50k | 227.76 MiB/s |
-| asset_database_5k | 310.02 MiB/s |
-| asset_database_5k_owned | 308.81 MiB/s |
-| asset_database_20k | 324.27 MiB/s |
-| asset_database_20k_owned | 307.35 MiB/s |
-| asset_database_5k_file_read | 396.37 MiB/s |
-| asset_database_5k_file_owned | 178.14 MiB/s |
-| small_files_1k | 205.41 MiB/s |
-| strings_plain_5k | 1094.19 MiB/s |
-| strings_escaped_5k | 728.18 MiB/s |
-| deep_1k | 226.88 MiB/s |
-| code_forms_2k | 263.15 MiB/s |
-| wide_10k | 337.86 MiB/s |
-| query_assets_10k | 23.47M queries/s |
-| query_internal_assets_10k | 38.96M queries/s |
-| query_internal_ordered_assets_10k | 55.77M queries/s |
-| query_first_10k | 15.05M queries/s |
-| query_last_10k | 11.29M queries/s |
-| query_missing_10k | 14.40M queries/s |
-| query_string_view_10k | 16.39M queries/s |
-| query_text_only_10k | 45.55M queries/s |
-| query_symbol_compare_10k | 45.12M queries/s |
-| query_asset_database_5k | 23.88M queries/s |
-| query_many_keys_last | 7.33M queries/s |
-| query_find_many_keys_last | 8.14M queries/s |
-| query_child_at_many_keys_last | 7.42M queries/s |
-| query_find_arg_many_keys_last | 7.86M queries/s |
+| assets_10k | 250.17 MiB/s |
+| assets_50k | 215.88 MiB/s |
+| asset_database_5k | 319.38 MiB/s |
+| asset_database_5k_owned | 325.98 MiB/s |
+| asset_database_20k | 297.23 MiB/s |
+| asset_database_20k_owned | 301.14 MiB/s |
+| asset_database_5k_file_read | 382.93 MiB/s |
+| asset_database_5k_file_owned | 179.13 MiB/s |
+| small_files_1k | 212.15 MiB/s |
+| strings_plain_5k | 1112.12 MiB/s |
+| strings_escaped_5k | 738.99 MiB/s |
+| deep_1k | 222.41 MiB/s |
+| code_forms_2k | 261.06 MiB/s |
+| wide_10k | 384.71 MiB/s |
+| query_assets_10k | 24.34M queries/s |
+| query_internal_assets_10k | 38.91M queries/s |
+| query_internal_ordered_assets_10k | 55.83M queries/s |
+| query_first_10k | 15.53M queries/s |
+| query_last_10k | 11.35M queries/s |
+| query_missing_10k | 13.77M queries/s |
+| query_string_view_10k | 16.77M queries/s |
+| query_text_only_10k | 46.34M queries/s |
+| query_symbol_compare_10k | 44.29M queries/s |
+| query_asset_database_5k | 22.57M queries/s |
+| query_many_keys_last | 7.38M queries/s |
+| query_find_many_keys_last | 8.12M queries/s |
+| query_child_at_many_keys_last | 7.54M queries/s |
+| query_find_arg_many_keys_last | 7.35M queries/s |
 
 Latest yyjson comparison results:
 
 | Equivalent case | gsexp | yyjson | yyjson/gsexp |
 | --- | ---: | ---: | ---: |
-| assets_10k parse | 264.33 MiB/s | 716.19 MiB/s | 2.71x |
-| assets_50k parse | 227.76 MiB/s | 670.12 MiB/s | 2.94x |
-| asset_database_5k parse | 310.02 MiB/s | 829.76 MiB/s | 2.68x |
-| asset_database_20k parse | 324.27 MiB/s | 794.43 MiB/s | 2.45x |
-| small_files_1k parse | 205.41 MiB/s | 585.07 MiB/s | 2.85x |
-| strings_plain_5k parse | 1094.19 MiB/s | 1445.37 MiB/s | 1.32x |
-| strings_escaped_5k parse | 728.18 MiB/s | 1267.39 MiB/s | 1.74x |
-| code_forms_2k parse | 263.15 MiB/s | 666.05 MiB/s | 2.53x |
-| wide_10k parse | 337.86 MiB/s | 837.42 MiB/s | 2.48x |
-| assets_10k lookup | 23.47M queries/s | 107.47M queries/s | 4.58x |
-| asset_database_5k lookup | 23.88M queries/s | 80.83M queries/s | 3.39x |
-| many_keys_last lookup | 7.33M queries/s | 14.40M queries/s | 1.96x |
+| assets_10k parse | 250.17 MiB/s | 674.39 MiB/s | 2.70x |
+| assets_50k parse | 215.88 MiB/s | 717.71 MiB/s | 3.32x |
+| asset_database_5k parse | 319.38 MiB/s | 831.41 MiB/s | 2.60x |
+| asset_database_20k parse | 297.23 MiB/s | 779.07 MiB/s | 2.62x |
+| small_files_1k parse | 212.15 MiB/s | 598.94 MiB/s | 2.82x |
+| strings_plain_5k parse | 1112.12 MiB/s | 1422.72 MiB/s | 1.28x |
+| strings_escaped_5k parse | 738.99 MiB/s | 1231.57 MiB/s | 1.67x |
+| code_forms_2k parse | 261.06 MiB/s | 695.02 MiB/s | 2.66x |
+| wide_10k parse | 384.71 MiB/s | 843.56 MiB/s | 2.19x |
+| assets_10k lookup | 24.34M queries/s | 126.06M queries/s | 5.18x |
+| asset_database_5k lookup | 22.57M queries/s | 83.31M queries/s | 3.69x |
+| many_keys_last lookup | 7.38M queries/s | 15.15M queries/s | 2.05x |
 
 These are equivalent data shapes, not byte-identical files. The JSON fixtures
 are generated beside the S-expression fixtures and measured by each format's
@@ -364,6 +364,7 @@ Attempt results so far:
 | Unified value-index helper for `get_*()` | Rejected. `get_int()`, `get_string()`, and `get_string_view()` tried using the index-returning `find_arg_index()` path so all `get_*()` methods shared one value lookup helper. It removed the pointer-returning helper but regressed the measured lookup suite: `query_assets_10k` fell to 23.98M q/s and `query_asset_database_5k` fell to 23.33M q/s. The pointer-returning helper was restored for string and int access. |
 | Wide `find_arg()` query benchmark | Kept. The benchmark suite now reports `query_find_arg_many_keys_last`, measuring `FormView::find_arg("key_23", 0)` on the same wide records used by `query_find_many_keys_last` and `query_child_at_many_keys_last`. First measured run: `find_arg` reached 7.86M q/s, compared with `find()` at 7.29M q/s and `find()+child_at(1)` at 7.62M q/s. This is measurement support for the direct `find_arg()` implementation, not a new parser behavior. |
 | Lazy atom-head hash side metadata | Rejected. Direct small-form lookup tried adding a storage-owned `atom_hash_cache` and comparing cached FNV-1a hashes before text comparison. This kept the public API unchanged but made the main targets worse: `query_assets_10k` fell to 17.77M q/s and `query_asset_database_5k` fell to 20.82M q/s, while `assets_10k` query stats gained about 1.36 MB of hash-cache capacity. The normal size check plus direct `memcmp` path was restored. |
+| Manual checked integer parser | Kept, with mixed results. `get_int()` now uses a small decimal parser instead of `looks_like_integer()` plus `std::from_chars`, while preserving plus/minus, suffix rejection, sign-only rejection, and overflow behavior covered by tests. Two measured runs improved the common asset query to 23.94M and 24.34M q/s versus the previous documented 23.47M q/s, and `query_first_10k` reached 15.87M and 15.53M q/s versus 15.05M. The mixed asset database query was lower at 21.41M and 22.57M q/s versus the previous 23.88M, so this remains a watch item for later A/B runs. |
 
 Current pending Plan 11 queue:
 

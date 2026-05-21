@@ -102,6 +102,7 @@ StorageStats ParseResult::storage_stats() const {
 
     stats.child_index_count = storage->child_indexes.size();
     stats.child_index_capacity = storage->child_indexes.capacity();
+    stats.child_index_cache_bytes = stats.child_index_capacity * sizeof(ChildIndexCache);
     stats.child_index_lookup_capacity = storage->child_index_lookup.capacity();
     stats.child_index_lookup_bytes = stats.child_index_lookup_capacity * sizeof(std::uint16_t);
     stats.float_cache_capacity = storage->float_cache.capacity();
@@ -115,7 +116,7 @@ StorageStats ParseResult::storage_stats() const {
                               storage->nodes.capacity() * sizeof(NodeData) +
                               storage->child_count_overflows.capacity() * sizeof(ChildCountOverflow) +
                               storage->decoded_text.capacity() +
-                              stats.child_index_capacity * sizeof(ChildIndexCache) +
+                              stats.child_index_cache_bytes +
                               stats.child_index_lookup_capacity * sizeof(std::uint16_t) +
                               stats.child_index_entry_capacity * sizeof(KeyIndexEntry) +
                               stats.float_cache_bytes;

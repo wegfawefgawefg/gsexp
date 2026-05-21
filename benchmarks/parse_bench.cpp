@@ -71,6 +71,7 @@ void print_storage_stats(const char* name, const gsexp::ParseResult& result) {
               << " decoded_bytes=" << stats.decoded_string_bytes
               << " child_indexes=" << stats.child_index_count
               << " child_index_capacity=" << stats.child_index_capacity
+              << " child_index_cache_bytes=" << stats.child_index_cache_bytes
               << " child_index_lookup_capacity=" << stats.child_index_lookup_capacity
               << " child_index_lookup_bytes=" << stats.child_index_lookup_bytes
               << " child_index_entries=" << stats.child_index_entry_count

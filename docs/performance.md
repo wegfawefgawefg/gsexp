@@ -129,6 +129,93 @@ Plan 7 optimization attempt results:
 | Smaller decoded string reserve | Kept. `strings_escaped_5k` retained storage dropped from about 4.5 MB to 4.2 MB with similar throughput. |
 | yyjson source review | Completed. Useful takeaways: yyjson keeps compact 16-byte values, separates trivia skipping from hot value reads, and `yyjson_obj_getn` is still a linear object scan. The local query gap is therefore not because yyjson uses a magic hash table in the compared API. |
 
+## Optimization Plan 8
+
+Goal: reduce the remaining gap against yyjson by improving storage layout,
+retained node size, and lookup locality. Plan 7 already improved scanning and
+success-path parsing; Plan 8 should avoid more broad scanner work until the
+retained representation has been measured.
+
+Baseline gaps after Plan 7:
+
+1. `strings_plain_5k` is now relatively close to yyjson at 1.41x behind.
+2. `asset_database_5k`, `assets_*`, and `wide_10k` are still roughly 3x behind.
+3. Escaped strings are still about 4x behind.
+4. Query helpers improved, but common asset lookup is still roughly 3.6x behind
+   yyjson and wide-key lookup is roughly 1.9x behind.
+
+Work order:
+
+1. Measure node layout directly.
+   Add benchmark output for `sizeof(NodeData)`, node bytes per source byte, and
+   text-storage overhead. Use this before changing representation so every
+   layout attempt has a memory-locality baseline.
+
+2. Offset/length text representation.
+   Prototype replacing retained `std::string_view` in `NodeData` with source
+   offset and length fields. `Node::text()` can still return
+   `std::string_view`, so the public API can remain stable. This should improve
+   node density and cache behavior if the packed fields are materially smaller
+   than the current view-based layout.
+
+3. Pack node metadata.
+   Measure narrower fields for type, child count, and links. Keep `uint32_t`
+   indexes unless there is a proven need for larger files. Avoid clever bit
+   packing unless it is clearly faster or smaller without making debugging bad.
+
+4. Direct decoded string arena writes.
+   Escaped string parsing still builds a temporary `std::string`, then copies to
+   decoded storage. Decode directly into the parse-owned arena and roll back on
+   unterminated strings if needed. This targets the biggest remaining string
+   gap.
+
+5. Query-only microbenchmarks.
+   Add benchmarks that isolate `find_child`, value-child lookup, numeric
+   parsing, and optional/string construction separately. Do this before more
+   lookup rewrites so the next change attacks the actual slow component.
+
+6. Child index locality.
+   After query microbenchmarks exist, try a compact per-parse side array for
+   child indexes instead of an `unordered_map<uint32_t, vector<Entry>>`. Keep
+   lazy construction. Reject if parse memory or simple lookup cases regress.
+
+7. Owned file-load hot path.
+   Add a benchmark that reads generated content into a `std::string` and calls
+   `parse_owned(std::move(text))`. If this becomes the intended asset database
+   path, optimize that path first. Do not add an unsafe in-situ parser unless
+   the owned path is clearly insufficient.
+
+8. Optional public API review.
+   Only after storage experiments, decide whether any API addition is warranted.
+   Default answer remains no: callers should use `parse` and `parse_owned`.
+
+Acceptance rules:
+
+1. Each attempt gets before/after benchmark output and a keep/reject note.
+2. `gsexp ./scripts/build.sh` passes.
+3. `gsexp ./scripts/bench.sh` passes with yyjson enabled.
+4. Benchmark build with `GSEXP_BENCHMARK_YYJSON=OFF` still works.
+5. `glayout ./scripts/build.sh` passes after any public API, build, or vendoring
+   change.
+6. Public API stays stable unless README and glayout are updated in the same
+   change.
+7. `Node::text()` and existing extraction helpers keep their behavior unless a
+   deliberate API change is documented.
+8. Keep files within the project size guideline by splitting cohesive storage,
+   tokenizer, benchmark, or lookup helpers as needed.
+
+Rejected-by-default unless evidence changes:
+
+1. In-situ parsing that leaves callers responsible for source lifetime.
+   `parse_owned` already gives the parser ownership safely.
+2. Complex compressed node formats that make debugger inspection painful.
+3. Hashing every key during parse.
+   Most data does not need indexes. Keep indexes lazy unless benchmarks prove
+   eager indexing is worth it.
+4. Copying yyjson internals wholesale.
+   The useful lesson is compact layout and hot-loop discipline, not a wholesale
+   JSON parser architecture transplant.
+
 ## Optimization Plan 7
 
 Goal: close the measured parse/query gap against yyjson without adding a

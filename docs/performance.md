@@ -188,6 +188,129 @@ Plan 9 optimization attempt results:
 | Query cache locality follow-up | Measured, no further structure change. The wide-key query cases remain noisy and did not justify replacing the sorted lazy child-index cache in this pass. |
 | Owned file-load benchmark split | Kept. Latest run: in-memory parse 253.60 MiB/s, owned parse 240.27 MiB/s, cached file read 365.26 MiB/s, combined file-read-plus-parse 150.52 MiB/s. |
 
+## Optimization Plan 10
+
+Goal: make the public query API cleaner while giving the implementation a
+caller-owned place to keep temporary lookup state. The current free extraction
+helpers are easy for one-off calls, but they encourage repeated stateless scans
+over the same list. A `FormView` API should become the normal way to consume
+headed S-expression forms and should unlock lookup optimizations without adding
+parallel public styles.
+
+Vocabulary:
+
+1. A form is a list shaped as `(head arg0 arg1 ...)`.
+2. A parent form may contain child forms, such as
+   `(asset (id 10) (path "foo.png") (color 1 0 0))`.
+3. `FormView` is a non-owning view over one `Node`. It does not own parsed
+   storage; the `ParseResult` lifetime rule remains unchanged.
+
+Target API shape:
+
+```cpp
+gsexp::FormView asset(asset_node);
+
+gsexp::Node head = asset.head();
+gsexp::Node first_arg = asset.arg(0);
+gsexp::Node path_form = asset.find("path");
+gsexp::Node green = asset.find_arg("color", 1);
+
+std::optional<int> id = asset.get_int("id");
+std::optional<float> x = asset.get_float("x");
+std::optional<std::string_view> path = asset.get_string_view("path");
+```
+
+API cleanup:
+
+1. Add `FormView` as the recommended convenience/query API.
+2. Remove public free extraction helpers instead of keeping compatibility
+   wrappers. There are no external consumers yet.
+3. Decide whether public `find_child` remains. Default: remove it if
+   `FormView::find()` covers the use cleanly.
+4. Keep `Node` as the raw tree/traversal API: `children()`, `child_at()`,
+   `head()`, `second()`, `text()`, `is_atom()`, and type checks.
+5. Update README, examples, tests, benchmarks, and `glayout` in the same change
+   so there is one documented consumption style.
+
+Work order:
+
+1. Add `FormView` without optimization first.
+   Implement the simple version as a thin wrapper around the existing traversal
+   behavior. Update tests and benchmarks to use it. This establishes the new API
+   before performance changes muddy the diff.
+
+2. Update `glayout`.
+   Replace current `find_child` and `extract_*` usage with `FormView`. Build
+   `glayout` after the API change before attempting optimization.
+
+3. Benchmark the new API baseline.
+   Add or rename query benchmarks so they measure `FormView` as the default
+   consumption path. Keep yyjson comparisons for common asset lookup and
+   many-key lookup.
+
+4. Caller-owned lookup cache.
+   Add a small cache inside `FormView` and build it lazily on repeated lookup.
+   Try the simplest shape first: a vector of `{head_text, child_index}` entries
+   collected from direct children and sorted by head. Keep only if it improves
+   repeated lookup without hurting one-off lookup.
+
+5. Single-pass small-form scan.
+   For small forms, test whether direct scan beats cache construction. The view
+   can choose direct scan below a threshold and cached lookup above it, but the
+   policy must stay simple and measured.
+
+6. Batch lookup experiment.
+   Try a `FormView` internal path that can satisfy several requested keys after
+   one child scan. Do not add a separate batch public API unless the simple
+   `get_*` API cannot benefit from it.
+
+7. String access policy.
+   Make `get_string_view` the benchmark/default for asset database loading when
+   the caller can retain `ParseResult`. Keep `get_string` only for callers that
+   explicitly want ownership.
+
+8. Numeric extraction path.
+   Keep numeric behavior correct, then measure whether `FormView` can avoid
+   repeated value lookup and `Node` construction around `from_chars`.
+
+9. Storage-owned global cache audit.
+   If `FormView` cache performs well, decide whether the current
+   `ParseStorage::child_indexes` cache is still needed. Avoid two competing
+   cache systems unless each has a clear job.
+
+10. yyjson gap review.
+    Re-run the comparison table after the API and view-state changes. The main
+    target is `assets_10k lookup`; parse speed is secondary in this plan.
+
+Acceptance rules:
+
+1. `gsexp ./scripts/build.sh` passes.
+2. `gsexp ./scripts/bench.sh` passes with yyjson enabled.
+3. Benchmark build with `GSEXP_BENCHMARK_YYJSON=OFF` still works.
+4. `glayout ./scripts/build.sh` passes after the API change.
+5. README, examples, tests, and benchmarks show `FormView` as the normal query
+   API.
+6. No compatibility wrappers for removed free extraction helpers unless a real
+   consumer appears.
+7. Every optimization attempt gets before/after benchmark output and a
+   keep/reject note.
+8. Keep `FormView` low-abstraction: a small non-owning type with obvious state,
+   no hidden allocation-heavy machinery unless benchmarks justify it.
+9. Keep files inside the size guideline by splitting `FormView` implementation
+   out of `node.cpp` if needed.
+
+Rejected-by-default unless evidence changes:
+
+1. Keeping both free `extract_*` helpers and `FormView` as equally documented
+   public styles.
+2. Naming the API `Record`, `Object`, or `Map`; those are too semantic for
+   code-like S-expressions.
+3. Eagerly indexing every parsed form during parse.
+4. Adding a separate public batch extraction API before proving the normal
+   `FormView::get_*` API cannot be optimized enough.
+5. Chasing yyjson lookup numbers by making the S-expression model less
+   debuggable or less structural.
+
 ## Optimization Plan 9
 
 Goal: improve query/text access and escaped-string handling after the Plan 8

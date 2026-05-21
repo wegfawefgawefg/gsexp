@@ -441,6 +441,7 @@ int main() {
     std::string asset_json_10k = data::make_asset_json(10000);
     std::string asset_json_50k = data::make_asset_json(50000);
     std::string asset_database_json_5k = data::make_asset_database_json(5000);
+    std::string code_json_2k = data::make_code_json(2000);
     std::string wide_json_10k = data::make_wide_json(10000);
     std::string many_keys_json = data::make_many_keys_json(5000, 24);
 
@@ -484,6 +485,7 @@ int main() {
     yyjson_bench::run_small_files_case("yyjson_small_files_1k", 1000, 500);
     yyjson_bench::run_parse_case("yyjson_strings_plain_5k", data::make_string_json(5000, false, 12), 50);
     yyjson_bench::run_parse_case("yyjson_strings_escaped_5k", data::make_string_json(5000, true, 12), 50);
+    yyjson_bench::run_parse_case("yyjson_code_forms_2k", code_json_2k, 50);
     yyjson_bench::run_parse_case("yyjson_wide_10k", wide_json_10k, 50);
     yyjson_bench::run_query_case("yyjson_query_assets_10k", asset_json_10k, "assets", 10000, 100, false);
     yyjson_bench::run_query_case("yyjson_query_many_keys_last", many_keys_json, "records", 5000, 200, true);

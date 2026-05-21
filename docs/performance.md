@@ -27,42 +27,43 @@ Latest verified Plan 11 results on this machine:
 
 | Case | Result |
 | --- | ---: |
-| assets_10k | 211.04 MiB/s |
-| assets_50k | 197.21 MiB/s |
-| asset_database_5k | 266.39 MiB/s |
-| asset_database_5k_owned | 288.26 MiB/s |
-| asset_database_5k_file_read | 387.23 MiB/s |
-| asset_database_5k_file_owned | 169.45 MiB/s |
-| small_files_1k | 177.72 MiB/s |
-| strings_plain_5k | 980.38 MiB/s |
-| strings_escaped_5k | 679.52 MiB/s |
-| deep_1k | 201.51 MiB/s |
-| code_forms_2k | 241.66 MiB/s |
-| wide_10k | 329.10 MiB/s |
-| query_assets_10k | 16.35M queries/s |
-| query_first_10k | 13.69M queries/s |
-| query_last_10k | 8.36M queries/s |
-| query_missing_10k | 10.26M queries/s |
-| query_string_view_10k | 14.36M queries/s |
-| query_text_only_10k | 38.21M queries/s |
-| query_symbol_compare_10k | 40.88M queries/s |
-| query_many_keys_last | 5.10M queries/s |
-| query_find_many_keys_last | 6.20M queries/s |
-| query_child_at_many_keys_last | 4.91M queries/s |
+| assets_10k | 198.44 MiB/s |
+| assets_50k | 185.75 MiB/s |
+| asset_database_5k | 261.45 MiB/s |
+| asset_database_5k_owned | 206.37 MiB/s |
+| asset_database_5k_file_read | 308.23 MiB/s |
+| asset_database_5k_file_owned | 129.91 MiB/s |
+| small_files_1k | 158.56 MiB/s |
+| strings_plain_5k | 825.70 MiB/s |
+| strings_escaped_5k | 571.07 MiB/s |
+| deep_1k | 174.66 MiB/s |
+| code_forms_2k | 226.57 MiB/s |
+| wide_10k | 309.28 MiB/s |
+| query_assets_10k | 14.29M queries/s |
+| query_first_10k | 12.15M queries/s |
+| query_last_10k | 7.12M queries/s |
+| query_missing_10k | 10.50M queries/s |
+| query_string_view_10k | 11.47M queries/s |
+| query_text_only_10k | 38.54M queries/s |
+| query_symbol_compare_10k | 38.21M queries/s |
+| query_many_keys_last | 4.04M queries/s |
+| query_find_many_keys_last | 3.95M queries/s |
+| query_child_at_many_keys_last | 4.21M queries/s |
 
 Latest yyjson comparison results:
 
 | Equivalent case | gsexp | yyjson | yyjson/gsexp |
 | --- | ---: | ---: | ---: |
-| assets_10k parse | 211.04 MiB/s | 424.08 MiB/s | 2.01x |
-| assets_50k parse | 197.21 MiB/s | 552.09 MiB/s | 2.80x |
-| asset_database_5k parse | 266.39 MiB/s | 676.69 MiB/s | 2.54x |
-| small_files_1k parse | 177.72 MiB/s | 521.45 MiB/s | 2.93x |
-| strings_plain_5k parse | 980.38 MiB/s | 1211.77 MiB/s | 1.24x |
-| strings_escaped_5k parse | 679.52 MiB/s | 1184.56 MiB/s | 1.74x |
-| wide_10k parse | 329.10 MiB/s | 832.31 MiB/s | 2.53x |
-| assets_10k lookup | 16.35M queries/s | 128.91M queries/s | 7.89x |
-| many_keys_last lookup | 5.10M queries/s | 11.56M queries/s | 2.27x |
+| assets_10k parse | 198.44 MiB/s | 621.11 MiB/s | 3.13x |
+| assets_50k parse | 185.75 MiB/s | 622.82 MiB/s | 3.35x |
+| asset_database_5k parse | 261.45 MiB/s | 656.47 MiB/s | 2.51x |
+| small_files_1k parse | 158.56 MiB/s | 495.18 MiB/s | 3.12x |
+| strings_plain_5k parse | 825.70 MiB/s | 1234.01 MiB/s | 1.49x |
+| strings_escaped_5k parse | 571.07 MiB/s | 1167.54 MiB/s | 2.04x |
+| code_forms_2k parse | 226.57 MiB/s | 599.42 MiB/s | 2.65x |
+| wide_10k parse | 309.28 MiB/s | 732.20 MiB/s | 2.37x |
+| assets_10k lookup | 14.29M queries/s | 114.31M queries/s | 8.00x |
+| many_keys_last lookup | 4.04M queries/s | 10.74M queries/s | 2.66x |
 
 These are equivalent data shapes, not byte-identical files. The JSON fixtures
 are generated beside the S-expression fixtures and measured by each format's
@@ -222,11 +223,12 @@ walk, faster to query, and closer to contiguous memory.
 
 Current gap during Plan 11:
 
-1. `assets_10k` parse is about 2.01x behind yyjson on the latest Plan 11 run.
-2. `asset_database_5k` parse is about 2.54x behind yyjson.
-3. `assets_10k` lookup is about 7.89x behind yyjson.
-4. `many_keys_last` lookup is about 2.27x behind yyjson.
-5. The public API is now clean enough that internal representation churn should
+1. `assets_10k` parse is about 3.13x behind yyjson on the latest Plan 11 run.
+2. `asset_database_5k` parse is about 2.51x behind yyjson.
+3. `code_forms_2k` parse is about 2.65x behind yyjson.
+4. `assets_10k` lookup is about 8.00x behind yyjson.
+5. `many_keys_last` lookup is about 2.66x behind yyjson.
+6. The public API is now clean enough that internal representation churn should
    not force another user-facing rewrite.
 
 Attempt results so far:
@@ -252,6 +254,7 @@ Attempt results so far:
 | Resize plus `memcpy` for decoded string chunks | Rejected. Replacing `decoded_text.insert()` with a manual resize plus `memcpy` helper regressed the escaped string benchmark to 437.81 MiB/s and also hurt unrelated parse cases in the measured run. The original `vector::insert` path was restored. |
 | ASCII fast path in whitespace/comment skipper | Rejected. Checking `byte > ' '` before the full whitespace predicate improved some asset parse cases, but it was not broad enough: `code_forms_2k` fell to 230.94 MiB/s, `strings_plain_5k` fell to 974.72 MiB/s, and `wide_10k` fell to 306.75 MiB/s in the measured run. The simpler original skipper was restored. |
 | Combined integer validation and conversion | Rejected. Boundary tests for `INT_MIN`, `INT_MAX`, and overflow were added and passed, but the custom conversion did not produce a clear query-suite win. `query_first_10k` improved to 14.17M queries/s, but `query_many_keys_last` fell to 4.61M queries/s and `query_find_many_keys_last` fell to 4.65M queries/s, so the `looks_like_integer` plus `from_chars` path was restored. |
+| JSON equivalent for code-shaped forms | Kept. `yyjson_code_forms_2k` adds an AST-shaped JSON equivalent for `code_forms_2k`, so code-like input now appears in the yyjson comparison table. First measured comparison: `gsexp` 226.57 MiB/s on 699,796 bytes versus yyjson 599.42 MiB/s on 899,797 bytes, a 2.65x gap by each format's own byte size. |
 
 Work order:
 

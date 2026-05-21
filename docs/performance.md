@@ -330,3 +330,109 @@ Plan 3 execution status:
 4. The remaining major opportunity is a flat-storage `Value` redesign. That is
    outside incremental Plan 3 optimization and should be treated as a new design
    task before changing the normal API.
+
+## Optimization Plan 4
+
+Goal: replace the recursive public `Value` tree with flat storage and node
+handles. This is an intentional greenfield API change. Do not keep the old
+recursive tree as a second parser path.
+
+Public shape:
+
+1. Keep one parser entry point.
+   `gsexp::parse(text)` remains the normal way to parse. Do not add `parse_fast`
+   or a parallel parser API.
+
+2. Make `ParseResult` own flat node storage.
+   Store nodes contiguously, plus parse-owned source text and decoded escaped
+   strings. Node handles/views are valid while the owning `ParseResult` remains
+   alive.
+
+3. Expose node handles as the base API.
+   Callers should be able to write:
+
+```cpp
+gsexp::ParseResult result = gsexp::parse(text);
+gsexp::Node root = result.root(0);
+
+for (gsexp::Node child : root.children()) {
+    // inspect child
+}
+```
+
+4. Keep config helpers as the simple API.
+   Helpers should work on `Node` handles:
+
+```cpp
+std::optional<int> width = gsexp::extract_int(root, "width");
+std::optional<std::string> label = gsexp::extract_string(root, "label");
+```
+
+5. Remove the recursive `Value` API instead of maintaining both.
+   There are no real external consumers yet. Update `glayout` directly and keep
+   the library API small.
+
+Proposed node model:
+
+```cpp
+struct NodeData {
+    ValueType type;
+    std::string_view text;
+    uint32_t parent;
+    uint32_t first_child;
+    uint32_t next_sibling;
+};
+```
+
+`Node` should be a lightweight handle containing a pointer/reference to the
+owning storage plus a node index. It should provide direct, low-magic methods:
+
+- `type()`
+- `text()`
+- `is_atom(value)`
+- `children()`
+- `first_child()`
+- `next_sibling()`
+- `empty()`
+
+Implementation steps:
+
+1. Move the benchmark-only flat parser shape into the real parser.
+   Keep the existing diagnostics behavior and source-owned string lifetime.
+
+2. Add `Node`, `ChildRange`, and `ParseResult::root(index)`.
+   Keep iteration simple and debugger-friendly.
+
+3. Port helpers to `Node`.
+   Update `is_atom`, `find_child`, `extract_int`, `extract_float`, and
+   `extract_string`.
+
+4. Update tests.
+   Cover root access, child iteration, extraction helpers, escaped strings,
+   copied/moved `ParseResult`s, malformed input, comments, and multiple roots.
+
+5. Update `glayout`.
+   Replace direct `.list` usage with `Node` iteration and helper calls. Do not
+   add compatibility shims just for old `Value` code.
+
+6. Update docs and examples.
+   README and spec should show `Node` handle usage plus helper usage.
+
+7. Remove or rewrite the benchmark prototype.
+   Once flat storage is the real parser, the benchmark should compare normal
+   `parse(text)` directly. Keep no duplicate flat parser in benchmark code.
+
+Acceptance rules:
+
+1. `gsexp` build/tests pass.
+2. `glayout` build/tests pass after migration.
+3. Expanded benchmark suite runs.
+4. Normal `parse(text)` should approach the flat prototype results on large and
+   wide cases. It does not need to match the prototype exactly, but the rewrite
+   must clearly beat the current public tree on `assets_10k`, `assets_50k`, and
+   `wide_10k`.
+5. The simple helper API must remain easy enough for config loading. If callers
+   need to manually chase indices for common `(key value)` data, the API is too
+   low-level.
+6. No second parser API, no hidden recursive tree materialization, and no broad
+   compatibility layer for the removed `Value` shape.

@@ -107,6 +107,7 @@ StorageStats ParseResult::storage_stats() const {
     stats.child_index_lookup_bytes = stats.child_index_lookup_capacity * sizeof(std::uint16_t);
     stats.child_index_entry_count = storage->child_index_entries.size();
     stats.child_index_entry_capacity = storage->child_index_entries.capacity();
+    stats.child_index_entry_bytes = stats.child_index_entry_capacity * sizeof(KeyIndexEntry);
     stats.float_cache_capacity = storage->float_cache.capacity();
     stats.float_cache_bytes = stats.float_cache_capacity * sizeof(float);
 
@@ -116,7 +117,7 @@ StorageStats ParseResult::storage_stats() const {
                               storage->decoded_text.capacity() +
                               stats.child_index_cache_bytes +
                               stats.child_index_lookup_capacity * sizeof(std::uint16_t) +
-                              stats.child_index_entry_capacity * sizeof(KeyIndexEntry) +
+                              stats.child_index_entry_bytes +
                               stats.float_cache_bytes;
     return stats;
 }

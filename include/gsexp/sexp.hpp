@@ -105,6 +105,7 @@ struct StorageStats {
     std::size_t child_index_lookup_bytes = 0;
     std::size_t child_index_entry_count = 0;
     std::size_t child_index_entry_capacity = 0;
+    std::size_t child_index_entry_bytes = 0;
     std::size_t float_cache_capacity = 0;
     std::size_t float_cache_bytes = 0;
     std::size_t root_count = 0;

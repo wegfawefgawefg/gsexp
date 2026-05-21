@@ -14,7 +14,7 @@ namespace gsexp {
 namespace {
 
 constexpr std::uint16_t child_count_overflow_marker = 0xffffu;
-constexpr std::size_t reserve_sample_bytes = 16 * 1024;
+constexpr std::size_t reserve_sample_bytes = 4 * 1024;
 constexpr std::size_t reserve_min_nodes = 64;
 constexpr std::size_t reserve_slack_nodes = 16;
 constexpr double reserve_growth_slack = 1.02;

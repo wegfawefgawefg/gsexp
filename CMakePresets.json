@@ -15,6 +15,7 @@
         "GSEXP_STRICT": true,
         "GSEXP_WARN_AS_ERROR": true,
         "GSEXP_BUILD_EXAMPLES": true,
+        "GSEXP_BUILD_TESTS": true,
         "CMAKE_EXPORT_COMPILE_COMMANDS": true
       }
     }

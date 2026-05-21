@@ -5,6 +5,7 @@ project(gsexp VERSION 0.1.0 LANGUAGES CXX)
 option(GSEXP_STRICT "Enable strict compiler warnings" ON)
 option(GSEXP_WARN_AS_ERROR "Treat warnings as errors" OFF)
 option(GSEXP_BUILD_EXAMPLES "Build example programs" ON)
+option(GSEXP_BUILD_TESTS "Build test programs" ON)
 
 add_library(gsexp
     src/sexp.cpp
@@ -51,4 +52,15 @@ if(GSEXP_BUILD_EXAMPLES)
     target_link_libraries(gsexp_demo PRIVATE gsexp::gsexp)
     target_compile_features(gsexp_demo PRIVATE cxx_std_20)
     gsexp_apply_warnings(gsexp_demo)
+endif()
+
+if(GSEXP_BUILD_TESTS)
+    enable_testing()
+
+    add_executable(gsexp_tests tests/sexp_tests.cpp)
+    target_link_libraries(gsexp_tests PRIVATE gsexp::gsexp)
+    target_compile_features(gsexp_tests PRIVATE cxx_std_20)
+    gsexp_apply_warnings(gsexp_tests)
+
+    add_test(NAME gsexp_tests COMMAND gsexp_tests)
 endif()

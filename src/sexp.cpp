@@ -1,6 +1,7 @@
 #include "gsexp/sexp.hpp"
 
 #include <cctype>
+#include <cmath>
 #include <cstdlib>
 #include <limits>
 
@@ -109,6 +110,16 @@ bool parse_value(const std::vector<Token>& tokens,
     }
 
     return false;
+}
+
+std::optional<int> float_to_int(double value) {
+    if (!std::isfinite(value))
+        return std::nullopt;
+    if (value < static_cast<double>(std::numeric_limits<int>::min()) ||
+        value > static_cast<double>(std::numeric_limits<int>::max())) {
+        return std::nullopt;
+    }
+    return static_cast<int>(value);
 }
 
 } // namespace
@@ -332,7 +343,7 @@ std::optional<int> extract_int(const Value& list, std::string_view symbol) {
     }
 
     if (value.type == ValueType::Float)
-        return static_cast<int>(value.float_value);
+        return float_to_int(value.float_value);
 
     if (value.type == ValueType::Symbol && looks_like_integer(value.text)) {
         try {

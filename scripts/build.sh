@@ -22,3 +22,4 @@ if [ "${mode}" = "--configure-only" ]; then
 fi
 
 cmake --build --preset dev -j
+ctest --test-dir "${build_dir}" --output-on-failure

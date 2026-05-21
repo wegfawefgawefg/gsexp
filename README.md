@@ -26,6 +26,7 @@ Then wire it into your CMake project:
 
 ```cmake
 set(GSEXP_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(GSEXP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 add_subdirectory(third_party/gsexp)
 
 target_link_libraries(my_lib PUBLIC gsexp::gsexp)
@@ -63,6 +64,8 @@ tree, then validate it in the owning library or application.
 ```sh
 ./scripts/build.sh
 ```
+
+The build script also runs the test executable through CTest.
 
 ## Run Demo
 

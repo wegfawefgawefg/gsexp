@@ -498,6 +498,37 @@ Current pending Plan 11 queue:
     should use internal node indices or storage access to estimate real
     implementation ceilings, not propose another public API.
 
+11. Treat stateless `FormView` as the current implementation, not a principle.
+    The rejected stateful attempts mostly cached looked-up values or resume
+    positions. Still-open state should be smaller and more structural: cache
+    the storage pointer, list node index, and list `NodeData` pointer inside
+    `FormView` so repeated `get_*`, `find()`, and `find_arg()` calls do not
+    repeat `Node::data()` validation and wrapper unpacking. Keep the public API
+    exactly the same.
+
+12. Avoid public fast-path ceremony.
+    Do not add public compiled-key, cursor, batch, or scan-once APIs while
+    these internal options remain untested. If a benchmark-only probe wins,
+    translate the idea into normal `FormView` behavior through hidden state,
+    storage-owned metadata, or representation changes.
+
+13. Keep value caches narrower than form caches.
+    Lazy float caching paid because it targets a proven expensive conversion.
+    Integer caches, fixed small-form value caches, and form-state tables have
+    not paid yet. Future caches should start from one proven cost center, report
+    memory in `StorageStats`, and avoid caching whole records by default.
+
+14. Prefer source-offset metadata over copied text.
+    Recent wide-index wins came from retaining source offsets/sizes instead of
+    `string_view` objects or node ids. Reuse that pattern for any head metadata,
+    symbol table, or key cache before considering wider nodes or owned strings.
+
+15. Separate lookup ceilings from production API.
+    Internal ordered and storage-walk probes show the ceiling, but they are not
+    a user model. Keep adding probes only when they identify whether the gap is
+    repeated scans, key matching, public wrapper cost, child traversal, numeric
+    conversion, or retained layout.
+
 Work order:
 
 1. Contiguous child-span arena.
@@ -679,6 +710,49 @@ Work order:
     Lazy state can look good after it is built and bad on the first lookup.
     Keep first-use, repeated-use, and mixed-use cases in the benchmark output
     before keeping any stateful design.
+
+32. `FormView` structural state.
+    Try changing `FormView` from a single `Node` wrapper into a tiny resolved
+    view containing the storage pointer, form node index, and form node data
+    pointer. This should keep construction cheap and leave all public calls
+    unchanged. Measure one-off lookup, repeated lookup, mixed layout access,
+    and ordered traversal before keeping it.
+
+33. Storage-owned hot-key table without public compiled keys.
+    Try a small document-local table for repeated caller keys. Start with
+    source offsets/sizes or hashes and only use it as a fast reject before full
+    text comparison. Reject if the table lookup costs more than direct
+    `memcmp`, or if it only helps generated asset records.
+
+34. Compact open-addressed head interning.
+    Retry head interning without `std::unordered_map` and without a node-sized
+    side vector. Candidate shape: a flat open-addressed table for source-backed
+    atom heads plus compact per-list metadata. Compare parse cost, retained
+    bytes, common asset lookup, mixed asset lookup, and code-form lookup.
+
+35. List-only head metadata.
+    Store form head metadata only for list nodes that actually have atom heads.
+    Avoid node-wide fields until a compact list-only table proves useful. This
+    is distinct from the rejected node-indexed side vector and the rejected
+    mutation of list text fields during parse.
+
+36. Production child-span replacement.
+    If child spans are retried, remove retained sibling traversal from the real
+    representation instead of adding a side arena. The construction strategy
+    needs to build direct-child ranges with acceptable parse cost, then repack
+    `NodeData` after `next_sibling` is gone.
+
+37. Node wrapper overhead audit.
+    Public ordered traversal is much slower than internal node-index traversal.
+    Before a large representation rewrite, measure small targeted reductions in
+    wrapper overhead that do not duplicate unsafe indexing logic throughout the
+    code.
+
+38. Mixed record/code guardrail.
+    Every kept lookup optimization must be checked against asset records,
+    mixed asset database records, nested layout-like forms, wide forms, and
+    code-like ordered traversal. Reject record-shaped heuristics that make
+    tuple/code forms slower or awkward.
 
 Extended experiment queue:
 

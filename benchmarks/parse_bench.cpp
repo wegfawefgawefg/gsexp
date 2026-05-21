@@ -373,12 +373,27 @@ int main() {
                                                          15);
     std::string many_keys_data = data::make_many_keys_data(5000, 24);
     run_many_key_get_case("query_many_keys_24_last", many_keys_data, 5000, 200, "key_23", 23);
+    query_transition_bench::run_many_key_transition_case("query_many_keys_24_cold_once",
+                                                         "query_many_keys_24_warm_repeated",
+                                                         many_keys_data,
+                                                         5000,
+                                                         200,
+                                                         "key_23",
+                                                         23);
+    std::string many_keys_48_data = data::make_many_keys_data(5000, 48);
     run_many_key_get_case("query_many_keys_48_last",
-                          data::make_many_keys_data(5000, 48),
+                          many_keys_48_data,
                           5000,
                           200,
                           "key_47",
                           47);
+    query_transition_bench::run_many_key_transition_case("query_many_keys_48_cold_once",
+                                                         "query_many_keys_48_warm_repeated",
+                                                         many_keys_48_data,
+                                                         5000,
+                                                         200,
+                                                         "key_47",
+                                                         47);
     run_query_case("query_many_keys_last", many_keys_data, 5000, 200, QueryMode::ManyLast);
     run_query_case("query_find_many_keys_last", many_keys_data, 5000, 200, QueryMode::FindOnly);
     run_query_case("query_child_at_many_keys_last", many_keys_data, 5000, 200, QueryMode::ChildAtValue);

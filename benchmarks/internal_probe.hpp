@@ -5,8 +5,10 @@
 #include <charconv>
 #include <chrono>
 #include <cstdlib>
+#include <cmath>
 #include <cstring>
 #include <iostream>
+#include <limits>
 #include <string_view>
 
 namespace internal_probe {
@@ -69,6 +71,29 @@ inline float parse_required_float(std::string_view text) {
     std::exit(1);
 }
 
+inline float cached_required_float(const gsexp::ParseStorage& storage, std::uint32_t node_index) {
+    if (node_index >= storage.nodes.size()) {
+        std::cerr << "internal asset query probe has invalid float node\n";
+        std::exit(1);
+    }
+
+    if (storage.float_cache.empty())
+        storage.float_cache.resize(storage.nodes.size(), std::numeric_limits<float>::quiet_NaN());
+
+    float cached = storage.float_cache[node_index];
+    if (!std::isnan(cached)) {
+        if (std::isinf(cached)) {
+            std::cerr << "internal asset query probe found invalid cached float\n";
+            std::exit(1);
+        }
+        return cached;
+    }
+
+    float parsed = parse_required_float(node_text(storage, storage.nodes[node_index]));
+    storage.float_cache[node_index] = parsed;
+    return parsed;
+}
+
 inline std::uint32_t value_child(const gsexp::ParseStorage& storage, const gsexp::NodeData& field) {
     if (field.type != gsexp::ValueType::List || field.first_child == gsexp::invalid_node ||
         field.first_child >= storage.nodes.size())
@@ -126,10 +151,10 @@ inline double run_asset_query_once(const gsexp::ParseResult& result, int iterati
                             id = parse_required_int(node_text(storage, value));
                             found_id = true;
                         } else if (text_equals(storage, head, "x")) {
-                            x = parse_required_float(node_text(storage, value));
+                            x = cached_required_float(storage, value_index);
                             found_x = true;
                         } else if (text_equals(storage, head, "y")) {
-                            y = parse_required_float(node_text(storage, value));
+                            y = cached_required_float(storage, value_index);
                             found_y = true;
                         } else if (text_equals(storage, head, "path")) {
                             path = node_text(storage, value);

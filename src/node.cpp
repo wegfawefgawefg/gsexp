@@ -9,6 +9,29 @@ namespace {
 
 constexpr std::uint32_t indexed_child_threshold = 16;
 
+std::string_view node_text(const ParseStorage& storage, const NodeData& node) {
+    if (node.text_size == 0)
+        return {};
+
+    if (node.text_storage == TextStorage::Decoded) {
+        if (node.text_offset > storage.decoded_text.size())
+            return {};
+        std::size_t available = storage.decoded_text.size() - node.text_offset;
+        std::size_t size = node.text_size;
+        if (size > available)
+            size = available;
+        return std::string_view(storage.decoded_text.data() + node.text_offset, size);
+    }
+
+    if (node.text_offset > storage.source.size())
+        return {};
+    std::size_t available = storage.source.size() - node.text_offset;
+    std::size_t size = node.text_size;
+    if (size > available)
+        size = available;
+    return std::string_view(storage.source.data() + node.text_offset, size);
+}
+
 std::vector<KeyIndexEntry> build_child_index(const ParseStorage& storage, const NodeData& list) {
     std::vector<KeyIndexEntry> entries;
     if (list.child_count < indexed_child_threshold)
@@ -28,7 +51,7 @@ std::vector<KeyIndexEntry> build_child_index(const ParseStorage& storage, const 
         if (child.type == ValueType::List && child.first_child != invalid_node) {
             const NodeData& head = storage.nodes[child.first_child];
             if (head.type == ValueType::Atom)
-                entries.push_back(KeyIndexEntry{head.text, child_index});
+                entries.push_back(KeyIndexEntry{node_text(storage, head), child_index});
         }
         child_index = child.next_sibling;
     }
@@ -58,7 +81,7 @@ std::uint32_t find_child_index_direct(const ParseStorage& storage,
         }
 
         const NodeData& head = storage.nodes[child.first_child];
-        if (head.type == ValueType::Atom && head.text == symbol)
+        if (head.type == ValueType::Atom && node_text(storage, head) == symbol)
             return child_index;
 
         child_index = child.next_sibling;
@@ -74,16 +97,20 @@ std::uint32_t find_child_index(const ParseStorage& storage,
     if (list.child_count < indexed_child_threshold)
         return find_child_index_direct(storage, list, symbol);
 
-    if (!storage.child_indexes)
-        storage.child_indexes =
-            std::make_unique<std::unordered_map<std::uint32_t, std::vector<KeyIndexEntry>>>();
+    auto it = std::lower_bound(storage.child_indexes.begin(),
+                               storage.child_indexes.end(),
+                               list_index,
+                               [](const ChildIndexCache& item, std::uint32_t key) {
+                                   return item.list < key;
+                               });
+    if (it == storage.child_indexes.end() || it->list != list_index) {
+        ChildIndexCache cache;
+        cache.list = list_index;
+        cache.entries = build_child_index(storage, list);
+        it = storage.child_indexes.insert(it, std::move(cache));
+    }
 
-    auto& child_indexes = *storage.child_indexes;
-    auto it = child_indexes.find(list_index);
-    if (it == child_indexes.end())
-        it = child_indexes.emplace(list_index, build_child_index(storage, list)).first;
-
-    const std::vector<KeyIndexEntry>& entries = it->second;
+    const std::vector<KeyIndexEntry>& entries = it->entries;
     auto entry = std::lower_bound(entries.begin(),
                                   entries.end(),
                                   symbol,
@@ -137,22 +164,27 @@ StorageStats ParseResult::storage_stats() const {
         return stats;
 
     stats.source_bytes = storage->source.size();
+    stats.node_data_bytes = sizeof(NodeData);
     stats.node_count = storage->nodes.size();
     stats.node_capacity = storage->nodes.capacity();
+    stats.node_bytes = storage->nodes.capacity() * sizeof(NodeData);
+    if (stats.source_bytes > 0)
+        stats.node_bytes_per_source_byte =
+            static_cast<double>(stats.node_bytes) / static_cast<double>(stats.source_bytes);
     stats.decoded_string_count = storage->decoded_string_count;
     stats.decoded_string_bytes = storage->decoded_text.size();
 
-    if (storage->child_indexes) {
-        stats.child_index_count = storage->child_indexes->size();
-        for (const auto& item : *storage->child_indexes) {
-            stats.child_index_entry_count += item.second.size();
-            stats.child_index_entry_capacity += item.second.capacity();
-        }
+    stats.child_index_count = storage->child_indexes.size();
+    stats.child_index_capacity = storage->child_indexes.capacity();
+    for (const ChildIndexCache& item : storage->child_indexes) {
+        stats.child_index_entry_count += item.entries.size();
+        stats.child_index_entry_capacity += item.entries.capacity();
     }
 
     stats.approximate_bytes = storage->source.capacity() +
                               storage->nodes.capacity() * sizeof(NodeData) +
                               storage->decoded_text.capacity() +
+                              stats.child_index_capacity * sizeof(ChildIndexCache) +
                               stats.child_index_entry_capacity * sizeof(KeyIndexEntry);
     return stats;
 }
@@ -179,7 +211,7 @@ std::string_view Node::text() const {
     const NodeData* node = data();
     if (!node)
         return {};
-    return node->text;
+    return node_text(*storage, *node);
 }
 
 std::size_t Node::child_count() const {
@@ -309,10 +341,14 @@ std::optional<int> extract_int(Node list, std::string_view symbol) {
         return std::nullopt;
 
     const NodeData* value = find_value_child(*list.storage, list.index, *list_data, symbol);
-    if (value && value->type == ValueType::Atom && looks_like_integer(value->text)) {
+    if (!value || value->type != ValueType::Atom)
+        return std::nullopt;
+
+    std::string_view text = node_text(*list.storage, *value);
+    if (looks_like_integer(text)) {
         int parsed = 0;
-        const char* begin = value->text.data();
-        const char* end = begin + value->text.size();
+        const char* begin = text.data();
+        const char* end = begin + text.size();
         auto result = std::from_chars(begin, end, parsed);
         if (result.ec == std::errc{} && result.ptr == end)
             return parsed;
@@ -330,11 +366,14 @@ std::optional<float> extract_float(Node list, std::string_view symbol) {
         return std::nullopt;
 
     const NodeData* value = find_value_child(*list.storage, list.index, *list_data, symbol);
-    if (value && value->type == ValueType::Atom &&
-        (looks_like_float(value->text) || looks_like_integer(value->text))) {
+    if (!value || value->type != ValueType::Atom)
+        return std::nullopt;
+
+    std::string_view text = node_text(*list.storage, *value);
+    if (looks_like_float(text) || looks_like_integer(text)) {
         float parsed = 0.0f;
-        const char* begin = value->text.data();
-        const char* end = begin + value->text.size();
+        const char* begin = text.data();
+        const char* end = begin + text.size();
         auto result = std::from_chars(begin, end, parsed);
         if (result.ec == std::errc{} && result.ptr == end)
             return parsed;
@@ -353,7 +392,7 @@ std::optional<std::string> extract_string(Node list, std::string_view symbol) {
 
     const NodeData* value = find_value_child(*list.storage, list.index, *list_data, symbol);
     if (value && (value->type == ValueType::String || value->type == ValueType::Atom))
-        return std::string(value->text);
+        return std::string(node_text(*list.storage, *value));
 
     return std::nullopt;
 }
@@ -368,7 +407,7 @@ std::optional<std::string_view> extract_string_view(Node list, std::string_view 
 
     const NodeData* value = find_value_child(*list.storage, list.index, *list_data, symbol);
     if (value && (value->type == ValueType::String || value->type == ValueType::Atom))
-        return value->text;
+        return node_text(*list.storage, *value);
 
     return std::nullopt;
 }

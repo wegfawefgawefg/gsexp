@@ -227,11 +227,17 @@ class Parser {
     std::string_view text;
     std::size_t index = 0;
 
-    std::uint32_t add_node(ValueType type, std::string_view node_text, std::uint32_t parent) {
+    std::uint32_t add_node(ValueType type,
+                           TextStorage text_storage,
+                           std::size_t text_offset,
+                           std::size_t text_size,
+                           std::uint32_t parent) {
         std::uint32_t node_index = static_cast<std::uint32_t>(storage->nodes.size());
         NodeData node;
         node.type = type;
-        node.text = node_text;
+        node.text_storage = text_storage;
+        node.text_offset = static_cast<std::uint32_t>(text_offset);
+        node.text_size = static_cast<std::uint32_t>(text_size);
         storage->nodes.push_back(node);
         last_children.push_back(invalid_node);
 
@@ -303,7 +309,7 @@ class Parser {
         std::size_t start_offset = index;
         ++index;
 
-        out = add_node(ValueType::List, {}, parent);
+        out = add_node(ValueType::List, TextStorage::Source, 0, 0, parent);
 
         while (true) {
             skip_space_and_comments();
@@ -331,13 +337,16 @@ class Parser {
         std::size_t content_start = index;
         std::size_t scan = find_string_special(text, index);
         if (scan < text.size() && text[scan] == '"') {
-            out = add_node(ValueType::String, text.substr(content_start, scan - content_start), parent);
+            out = add_node(ValueType::String,
+                           TextStorage::Source,
+                           content_start,
+                           scan - content_start,
+                           parent);
             index = scan + 1;
             return true;
         }
 
-        std::string buffer;
-        buffer.reserve(32);
+        std::size_t decoded_start = prepare_decoded_string();
         while (index < text.size()) {
             char ch = text[index];
             ++index;
@@ -346,44 +355,47 @@ class Parser {
                 char esc = text[index];
                 ++index;
                 switch (esc) {
-                    case 'n': buffer.push_back('\n'); break;
-                    case 'r': buffer.push_back('\r'); break;
-                    case 't': buffer.push_back('\t'); break;
-                    case '\\': buffer.push_back('\\'); break;
-                    case '"': buffer.push_back('"'); break;
-                    default: buffer.push_back(esc); break;
+                    case 'n': storage->decoded_text.push_back('\n'); break;
+                    case 'r': storage->decoded_text.push_back('\r'); break;
+                    case 't': storage->decoded_text.push_back('\t'); break;
+                    case '\\': storage->decoded_text.push_back('\\'); break;
+                    case '"': storage->decoded_text.push_back('"'); break;
+                    default: storage->decoded_text.push_back(esc); break;
                 }
             } else if (ch == '"') {
-                out = add_node(ValueType::String, store_decoded_string(buffer), parent);
+                ++storage->decoded_string_count;
+                out = add_node(ValueType::String,
+                               TextStorage::Decoded,
+                               decoded_start,
+                               storage->decoded_text.size() - decoded_start,
+                               parent);
                 return true;
             } else {
-                buffer.push_back(ch);
+                storage->decoded_text.push_back(ch);
             }
         }
 
+        storage->decoded_text.resize(decoded_start);
         add_error(diagnostics, "unterminated string", start_offset);
         return false;
     }
 
-    std::string_view store_decoded_string(const std::string& value) {
+    std::size_t prepare_decoded_string() {
         if (storage->decoded_text.capacity() == 0) {
             std::size_t reserve_size = storage->source.size() - (storage->source.size() / 4);
-            if (reserve_size < value.size())
-                reserve_size = value.size();
+            if (reserve_size < 32)
+                reserve_size = 32;
             storage->decoded_text.reserve(reserve_size);
         }
 
-        std::size_t offset = storage->decoded_text.size();
-        storage->decoded_text.insert(storage->decoded_text.end(), value.begin(), value.end());
-        ++storage->decoded_string_count;
-        return std::string_view(storage->decoded_text.data() + offset, value.size());
+        return storage->decoded_text.size();
     }
 
     void parse_atom(std::uint32_t parent, std::uint32_t& out) {
         std::size_t start = index;
         index = find_atom_end(text, index);
 
-        out = add_node(ValueType::Atom, text.substr(start, index - start), parent);
+        out = add_node(ValueType::Atom, TextStorage::Source, start, index - start, parent);
     }
 };
 

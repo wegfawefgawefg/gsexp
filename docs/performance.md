@@ -27,34 +27,37 @@ Latest verified Plan 7 results on this machine:
 
 | Case | Result |
 | --- | ---: |
-| assets_10k | 198.68 MiB/s |
-| assets_50k | 177.47 MiB/s |
-| asset_database_5k | 267.81 MiB/s |
-| small_files_1k | 179.78 MiB/s |
-| strings_plain_5k | 914.77 MiB/s |
-| strings_escaped_5k | 307.47 MiB/s |
-| deep_1k | 184.29 MiB/s |
-| wide_10k | 289.02 MiB/s |
-| query_assets_10k | 15.99M queries/s |
-| query_first_10k | 12.05M queries/s |
-| query_last_10k | 7.83M queries/s |
-| query_missing_10k | 10.10M queries/s |
-| query_string_view_10k | 13.96M queries/s |
-| query_many_keys_last | 4.13M queries/s |
+| assets_10k | 215.50 MiB/s |
+| assets_50k | 176.79 MiB/s |
+| asset_database_5k | 258.69 MiB/s |
+| asset_database_5k_file_owned | 162.86 MiB/s |
+| small_files_1k | 180.79 MiB/s |
+| strings_plain_5k | 917.71 MiB/s |
+| strings_escaped_5k | 349.42 MiB/s |
+| deep_1k | 181.95 MiB/s |
+| wide_10k | 273.24 MiB/s |
+| query_assets_10k | 15.34M queries/s |
+| query_first_10k | 13.72M queries/s |
+| query_last_10k | 8.60M queries/s |
+| query_missing_10k | 11.43M queries/s |
+| query_string_view_10k | 13.69M queries/s |
+| query_many_keys_last | 4.64M queries/s |
+| query_find_many_keys_last | 4.19M queries/s |
+| query_child_at_many_keys_last | 4.62M queries/s |
 
 Plan 6 yyjson comparison results:
 
 | Equivalent case | gsexp | yyjson | yyjson/gsexp |
 | --- | ---: | ---: | ---: |
-| assets_10k parse | 198.68 MiB/s | 675.59 MiB/s | 3.40x |
-| assets_50k parse | 177.47 MiB/s | 700.65 MiB/s | 3.95x |
-| asset_database_5k parse | 267.81 MiB/s | 812.83 MiB/s | 3.03x |
-| small_files_1k parse | 179.78 MiB/s | 572.67 MiB/s | 3.19x |
-| strings_plain_5k parse | 914.77 MiB/s | 1288.46 MiB/s | 1.41x |
-| strings_escaped_5k parse | 307.47 MiB/s | 1248.00 MiB/s | 4.06x |
-| wide_10k parse | 289.02 MiB/s | 847.52 MiB/s | 2.93x |
-| assets_10k lookup | 15.99M queries/s | 58.21M queries/s | 3.64x |
-| many_keys_last lookup | 4.13M queries/s | 7.70M queries/s | 1.86x |
+| assets_10k parse | 215.50 MiB/s | 703.29 MiB/s | 3.26x |
+| assets_50k parse | 176.79 MiB/s | 709.70 MiB/s | 4.01x |
+| asset_database_5k parse | 258.69 MiB/s | 757.89 MiB/s | 2.93x |
+| small_files_1k parse | 180.79 MiB/s | 573.00 MiB/s | 3.17x |
+| strings_plain_5k parse | 917.71 MiB/s | 1339.24 MiB/s | 1.46x |
+| strings_escaped_5k parse | 349.42 MiB/s | 1123.13 MiB/s | 3.21x |
+| wide_10k parse | 273.24 MiB/s | 761.25 MiB/s | 2.79x |
+| assets_10k lookup | 15.34M queries/s | 109.98M queries/s | 7.17x |
+| many_keys_last lookup | 4.64M queries/s | 12.997M queries/s | 2.80x |
 
 These are equivalent data shapes, not byte-identical files. The JSON fixtures
 are generated beside the S-expression fixtures and measured by each format's
@@ -128,6 +131,32 @@ Plan 7 optimization attempt results:
 | Retained `last_child` in `NodeData` | Rejected. It increased retained node storage substantially and hurt lookup throughput, so the parse-only `last_children` side vector was restored. |
 | Smaller decoded string reserve | Kept. `strings_escaped_5k` retained storage dropped from about 4.5 MB to 4.2 MB with similar throughput. |
 | yyjson source review | Completed. Useful takeaways: yyjson keeps compact 16-byte values, separates trivia skipping from hot value reads, and `yyjson_obj_getn` is still a linear object scan. The local query gap is therefore not because yyjson uses a magic hash table in the compared API. |
+
+Important Plan 8 retained changes:
+
+1. Benchmark storage stats now report `sizeof(NodeData)`, total retained node
+   bytes, and node bytes per source byte.
+2. `NodeData` stores text as offset/length plus a source/decoded tag instead of
+   retaining `std::string_view`.
+3. `ValueType` and `TokenType` use byte-sized enum storage.
+4. Escaped strings decode directly into the parse-owned decoded text arena.
+5. Query microbenchmarks isolate find-only and child-at lookup on wide records.
+6. The benchmark includes an owned file-load path for the generated asset
+   database.
+7. Lazy child indexes use a sorted vector cache instead of an `unordered_map`.
+8. yyjson benchmark helpers moved to `benchmarks/yyjson_bench.hpp` to keep the
+   main benchmark file focused.
+
+Plan 8 optimization attempt results:
+
+| Attempt | Result |
+| --- | --- |
+| Node layout instrumentation | Kept. Stats now show node layout directly. Current `NodeData` is 24 bytes and dense generated data retains about 6 node bytes per source byte. |
+| Offset/length node text storage | Kept. Node size dropped from 28 bytes after the first prototype to 24 bytes with enum packing, and retained memory dropped across all parse cases while preserving `Node::text()`. |
+| Direct decoded string arena writes | Kept. `strings_escaped_5k` improved to 349.42 MiB/s on the latest run and retained decoded storage stayed lower than Plan 7. |
+| Query-only microbenchmarks | Kept. `query_find_many_keys_last` and `query_child_at_many_keys_last` show lookup/traversal cost separately from extraction. |
+| Sorted-vector child index cache | Kept. `query_many_keys_last` improved to 4.64M queries/s on the latest run and child-index storage is included in `approximate_bytes`. |
+| Owned file-load benchmark | Kept. `asset_database_5k_file_owned` measured 162.86 MiB/s on the latest run, which includes cached file read plus `parse_owned`. |
 
 ## Optimization Plan 8
 

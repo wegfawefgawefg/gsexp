@@ -7,22 +7,26 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <unordered_map>
 #include <vector>
 
 namespace gsexp {
 
-enum class TokenType {
+enum class TokenType : std::uint8_t {
     LParen,
     RParen,
     Atom,
     String,
 };
 
-enum class ValueType {
+enum class ValueType : std::uint8_t {
     List,
     String,
     Atom,
+};
+
+enum class TextStorage : std::uint8_t {
+    Source,
+    Decoded,
 };
 
 enum class DiagnosticSeverity {
@@ -47,11 +51,13 @@ struct Token {
 constexpr std::uint32_t invalid_node = 0xffffffffu;
 
 struct NodeData {
-    std::string_view text;
+    std::uint32_t text_offset = 0;
+    std::uint32_t text_size = 0;
     std::uint32_t first_child = invalid_node;
     std::uint32_t next_sibling = invalid_node;
     std::uint32_t child_count = 0;
     ValueType type = ValueType::List;
+    TextStorage text_storage = TextStorage::Source;
 };
 
 struct KeyIndexEntry {
@@ -59,22 +65,30 @@ struct KeyIndexEntry {
     std::uint32_t child = invalid_node;
 };
 
+struct ChildIndexCache {
+    std::uint32_t list = invalid_node;
+    std::vector<KeyIndexEntry> entries;
+};
+
 struct ParseStorage {
     std::string source;
     std::vector<char> decoded_text;
     std::size_t decoded_string_count = 0;
     std::vector<NodeData> nodes;
-    mutable std::unique_ptr<std::unordered_map<std::uint32_t, std::vector<KeyIndexEntry>>>
-        child_indexes;
+    mutable std::vector<ChildIndexCache> child_indexes;
 };
 
 struct StorageStats {
     std::size_t source_bytes = 0;
+    std::size_t node_data_bytes = 0;
     std::size_t node_count = 0;
     std::size_t node_capacity = 0;
+    std::size_t node_bytes = 0;
+    double node_bytes_per_source_byte = 0.0;
     std::size_t decoded_string_count = 0;
     std::size_t decoded_string_bytes = 0;
     std::size_t child_index_count = 0;
+    std::size_t child_index_capacity = 0;
     std::size_t child_index_entry_count = 0;
     std::size_t child_index_entry_capacity = 0;
     std::size_t root_count = 0;

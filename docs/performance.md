@@ -33,6 +33,12 @@ catch parser-level improvements, not full application startup behavior.
 | 2026-05-21 | Retest reserve 4 child slots after numeric guard/string reserve | 34.00 | 20.03 | Reverted; slower |
 | 2026-05-21 | Full lazy numeric parsing under old `Symbol` model | 42.35 | 30.94 | Superseded by deliberate `Atom` model |
 | 2026-05-21 | Reader model: atoms stay atoms; helpers interpret numbers | 38.84-47.29 | 24.49-29.78 | Kept; public model changed deliberately; reruns were noisy |
+| 2026-05-21 | ASCII classification and bulk atom column advance | 51.42 | 33.23 | Kept |
+| 2026-05-21 | Build lists directly in output `Value` | 51.81 | 33.26 | Kept; small/mostly neutral simplification |
+| 2026-05-21 | Retest fast-path unescaped strings after atom model | 52.69-54.26 | 29.26-33.53 | Reverted; large case mixed and code was less direct |
+| 2026-05-21 | Bulk-skip horizontal whitespace in parser | 51.60 | 33.12 | Reverted; no gain over simpler code |
+| 2026-05-21 | Fill parser output values directly instead of assigning `Value{}` | 59.22-60.97 | 36.45-36.85 | Kept |
+| 2026-05-21 | Remove defensive output field clears | 62.33 | 36.17 | Reverted; large case slower and invariant was less explicit |
 
 ## Optimization Plan 2
 
@@ -96,11 +102,18 @@ Candidate attempts:
      the all-atom reader model is more standard for S-expressions and better for
      future evaluator layers.
    - `is_symbol()` remains as a compatibility alias for `is_atom()`.
+   - Follow-up ASCII classification and bulk atom column advancement was kept.
+     It removes per-character locale checks and line/column function calls from
+     the atom hot path.
 
 2. Compact child storage for common short lists.
    - `reserve(2)` for parsed lists was kept.
    - `reserve(4)` was tested twice and rejected because it slowed the large
      asset-style benchmark.
+   - Building list nodes directly in the output `Value` was kept. It removes a
+     temporary `Value` and final move assignment per list.
+   - Filling output values directly was kept. It avoids assigning a fresh
+     default `Value` over parser-local values that are usually already empty.
    - A true small-vector representation would require changing `Value::list`
      away from `std::vector<Value>`, which is a public shape change.
 

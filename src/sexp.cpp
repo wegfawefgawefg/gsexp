@@ -7,6 +7,14 @@
 namespace gsexp {
 namespace {
 
+bool is_space(char c) {
+    return c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == '\v' || c == '\f';
+}
+
+bool is_digit(char c) {
+    return c >= '0' && c <= '9';
+}
+
 void advance_position(char c, int& line, int& column) {
     if (c == '\n') {
         ++line;
@@ -72,7 +80,7 @@ class Parser {
     void skip_space_and_comments() {
         while (index < text.size()) {
             char c = text[index];
-            if (std::isspace(static_cast<unsigned char>(c))) {
+            if (is_space(c)) {
                 advance();
                 continue;
             }
@@ -112,9 +120,10 @@ class Parser {
         int start_column = column;
         advance();
 
-        Value list;
-        list.type = ValueType::List;
-        list.list.reserve(2);
+        out.type = ValueType::List;
+        out.text.clear();
+        out.list.clear();
+        out.list.reserve(2);
 
         while (true) {
             skip_space_and_comments();
@@ -124,14 +133,13 @@ class Parser {
             }
             if (text[index] == ')') {
                 advance();
-                out = std::move(list);
                 return true;
             }
 
             Value child;
             if (!parse_value(child, diagnostics))
                 return false;
-            list.list.push_back(std::move(child));
+            out.list.push_back(std::move(child));
         }
     }
 
@@ -158,9 +166,9 @@ class Parser {
                     default: buffer.push_back(esc); break;
                 }
             } else if (ch == '"') {
-                out = Value{};
                 out.type = ValueType::String;
                 out.text = std::move(buffer);
+                out.list.clear();
                 return true;
             } else {
                 buffer.push_back(ch);
@@ -175,14 +183,15 @@ class Parser {
         std::size_t start = index;
         while (index < text.size()) {
             char ch = text[index];
-            if (std::isspace(static_cast<unsigned char>(ch)) || ch == '(' || ch == ')')
+            if (is_space(ch) || ch == '(' || ch == ')')
                 break;
-            advance();
+            ++index;
         }
 
-        out = Value{};
+        column += static_cast<int>(index - start);
         out.type = ValueType::Atom;
-        out.text = std::string(text.substr(start, index - start));
+        out.text.assign(text.substr(start, index - start));
+        out.list.clear();
     }
 };
 
@@ -201,7 +210,7 @@ bool looks_like_integer(std::string_view text) {
 
     bool digit = false;
     for (; index < text.size(); ++index) {
-        if (!std::isdigit(static_cast<unsigned char>(text[index])))
+        if (!is_digit(text[index]))
             return false;
         digit = true;
     }
@@ -226,7 +235,7 @@ bool looks_like_float(std::string_view text) {
 
     for (; index < text.size(); ++index) {
         char c = text[index];
-        if (std::isdigit(static_cast<unsigned char>(c))) {
+        if (is_digit(c)) {
             digit = true;
             continue;
         }
@@ -256,7 +265,7 @@ std::vector<Token> tokenize(std::string_view text, std::vector<Diagnostic>* diag
     while (index < text.size()) {
         char c = text[index];
 
-        if (std::isspace(static_cast<unsigned char>(c))) {
+        if (is_space(c)) {
             advance_position(c, line, column);
             ++index;
             continue;
@@ -334,7 +343,7 @@ std::vector<Token> tokenize(std::string_view text, std::vector<Diagnostic>* diag
         std::size_t start = index;
         while (index < text.size()) {
             char ch = text[index];
-            if (std::isspace(static_cast<unsigned char>(ch)) || ch == '(' || ch == ')')
+            if (is_space(ch) || ch == '(' || ch == ')')
                 break;
 
             advance_position(ch, line, column);

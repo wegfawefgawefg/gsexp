@@ -378,6 +378,9 @@ int main() {
     run_internal_nested_find_arg_case("query_internal_nested_find_arg_5k", nested_arg_data, 5000, 200);
     traversal_bench::run_ordered_code_case("iterate_code_forms_2k", code_forms_2k, 200);
     traversal_bench::run_internal_ordered_code_case("iterate_internal_code_forms_2k", code_forms_2k, 200);
+    traversal_bench::run_child_span_ordered_code_case("iterate_child_span_code_forms_2k",
+                                                      code_forms_2k,
+                                                      200);
     scan_probe::run_case("scan_probe_asset_database_5k", asset_database_5k, 1000);
 #if GSEXP_HAVE_YYJSON
     yyjson_bench::run_parse_case("yyjson_assets_10k", asset_json_10k, 50);

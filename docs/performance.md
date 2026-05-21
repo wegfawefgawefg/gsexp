@@ -103,6 +103,90 @@ Plan 6 optimization attempt results:
 | Density-aware node reserve, gated version | Kept. `strings_plain_5k` retained storage dropped from about 10.1 MiB to 3.0 MiB and `strings_escaped_5k` dropped from about 12.3 MiB to 4.3 MiB. Dense and small inputs keep the old reserve. |
 | Benchmark-only SSE2 delimiter scan probe | Measured, not integrated. On `asset_database_5k`, scalar delimiter counting reached 863.18 MiB/s and SSE2 reached 1696.90 MiB/s, a 1.97x raw scan speedup. Parser integration still needs separate proof because parsing also maintains structure, diagnostics, and line/column state. |
 
+## Optimization Plan 7
+
+Goal: close the measured parse/query gap against yyjson without adding a
+second public parser API and without making the implementation hard to audit.
+Plan 7 should focus on the parser success path and query helpers. Comparison
+against yyjson remains useful, but new work should primarily improve `gsexp`
+itself.
+
+Baseline gaps from Plan 6:
+
+1. Parse throughput is usually 3.2x to 4.7x behind yyjson on equivalent DOM/tree
+   workloads.
+2. Lookup throughput is 2.2x to 4.3x behind yyjson.
+3. A raw SSE2 delimiter scan is about 2x faster than scalar delimiter counting,
+   but it is not yet integrated into parsing.
+
+Work order:
+
+1. Success-path position tracking.
+   Today the parser updates line/column during ordinary successful parsing.
+   Try storing only byte offsets during parse and computing line/column only
+   when an error diagnostic is emitted. Keep exact diagnostics in tests. This
+   should be the first attempt because it may reduce branchy per-character work
+   without SIMD or API changes.
+
+2. Faster atom and string scanning.
+   Integrate word-at-a-time or SSE2 delimiter search into atom scanning first.
+   Then try string scanning for quote/backslash/newline. Keep scalar fallback.
+   Do not introduce a public `parse_simd` or required SIMD baseline.
+
+3. Query helper fast paths.
+   Add internal helpers that return the value child directly for `(key value)`
+   pairs so `extract_int`, `extract_float`, and string helpers do less repeated
+   `Node` construction and `child_count` work. Preserve the public helper API.
+
+4. Child index representation.
+   The current lazy index stores a vector of key/child entries inside an
+   unordered_map keyed by parent node. Measure whether a simpler per-parse side
+   array, sorted vector, or compact open-addressed table helps the wide-key
+   lookup cases without increasing parse cost.
+
+5. Node append hot path.
+   Measure alternatives to pushing both `NodeData` and `last_children` for every
+   node. Do not reintroduce retained parent pointers unless benchmarks prove the
+   memory/speed tradeoff is worth it.
+
+6. Decode arena sizing.
+   Revisit escaped string storage after parser scanning changes. Try block-based
+   decoded storage only if escaped-heavy benchmarks show either speed or memory
+   pressure that justifies it.
+
+External code review:
+
+1. Inspect yyjson selectively for allocation, scanner, and lookup techniques.
+   Do not copy large code or change license surface.
+2. Optionally inspect one small S-expression/data parser for representation
+   ideas, but do not optimize for Lisp evaluation or cons-cell semantics.
+3. Avoid cloning many libraries until a local bottleneck is unclear. Current
+   bottlenecks are clear enough to try local changes first.
+
+Acceptance rules:
+
+1. Each attempt gets before/after benchmark output and a keep/reject note.
+2. `gsexp ./scripts/build.sh` passes.
+3. `gsexp ./scripts/bench.sh` passes with yyjson enabled.
+4. Benchmark build with `GSEXP_BENCHMARK_YYJSON=OFF` still works.
+5. `glayout ./scripts/build.sh` passes after any public API or vendoring change.
+6. Public API stays stable unless the README and glayout are updated in the same
+   change.
+7. SIMD changes must compile out cleanly on non-x86 or non-SIMD builds.
+8. Keep files roughly within the existing size discipline; split benchmark or
+   parser helpers by responsibility if a file grows clearly past the guideline.
+
+Rejected-by-default unless evidence changes:
+
+1. A separate fast parser API.
+   Users should still call `parse` or `parse_owned`.
+2. Removing useful diagnostics for speed.
+   Exact diagnostics can become lazy, but error quality should not regress.
+3. Rewriting the parser around a complex generator or table-driven framework.
+   The project goal is still low-abstraction, easy-to-debug C++.
+4. Chasing yyjson validation-only numbers.
+   The target remains retained tree construction and practical lookup speed.
+
 ## Optimization Plan 6
 
 Goal: compare `gsexp` honestly against optimized JSON parsers and investigate

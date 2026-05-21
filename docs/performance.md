@@ -250,6 +250,7 @@ Attempt results so far:
 | Lower small-form index threshold from 16 to 8 | Rejected. The asset record shape has enough fields to trigger indexing at threshold 8, but the measured result was worse: `query_assets_10k` fell to 11.47M queries/s and `query_string_view_10k` fell to 9.49M queries/s. Retained bytes for the query case also grew from about 9.6 MB to 13.4 MB because 10,000 small child indexes were built. |
 | Use `std::sort` instead of `std::stable_sort` for child indexes | Rejected. Stable ordering is not required for correctness, but the measured run regressed relevant cases: `query_many_keys_last` fell to 3.70M queries/s, `query_find_many_keys_last` fell to 4.72M queries/s, and `query_assets_10k` fell to 10.57M queries/s. The stable sort path was restored. |
 | Resize plus `memcpy` for decoded string chunks | Rejected. Replacing `decoded_text.insert()` with a manual resize plus `memcpy` helper regressed the escaped string benchmark to 437.81 MiB/s and also hurt unrelated parse cases in the measured run. The original `vector::insert` path was restored. |
+| ASCII fast path in whitespace/comment skipper | Rejected. Checking `byte > ' '` before the full whitespace predicate improved some asset parse cases, but it was not broad enough: `code_forms_2k` fell to 230.94 MiB/s, `strings_plain_5k` fell to 974.72 MiB/s, and `wide_10k` fell to 306.75 MiB/s in the measured run. The simpler original skipper was restored. |
 
 Work order:
 

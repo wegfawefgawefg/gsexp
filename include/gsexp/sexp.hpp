@@ -195,6 +195,8 @@ class FormView {
 
   private:
     Node form;
+    mutable std::string_view cached_head;
+    mutable Node cached_form;
 };
 
 bool looks_like_integer(std::string_view text);

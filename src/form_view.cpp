@@ -201,13 +201,18 @@ Node FormView::arg(std::size_t index) const {
 }
 
 Node FormView::find(std::string_view searched_head) const {
+    if (cached_form.valid() && cached_head == searched_head)
+        return cached_form;
+
     const ParseStorage* storage = form.storage;
     const NodeData* form_data = form.data();
     if (!storage || !form_data || form_data->type != ValueType::List)
         return {};
 
     std::uint32_t child_index = find_child_index(*storage, form.index, *form_data, searched_head);
-    return Node(storage, child_index);
+    cached_head = searched_head;
+    cached_form = Node(storage, child_index);
+    return cached_form;
 }
 
 Node FormView::find_arg(std::string_view searched_head, std::size_t index) const {

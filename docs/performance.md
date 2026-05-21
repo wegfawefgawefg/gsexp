@@ -68,6 +68,7 @@ Plan 3 optimization attempts.
 | 2026-05-21 | Source-owned `std::string_view` value text | `assets_50k`, string-heavy, wide lists | Kept; large/string-heavy wins, `assets_1k` regressed |
 | 2026-05-21 | Store atom text hashes for faster `is_atom` rejection | `query_assets_10k` | Reverted; query and large parse cases were slower |
 | 2026-05-21 | Store list vectors in `std::pmr::monotonic_buffer_resource` | Allocation-heavy parse cases | Reverted; slower across most expanded benchmarks |
+| 2026-05-21 | Add flat-node parser prototype benchmark | `flat_assets_50k`, `flat_wide_10k` | Kept as benchmark; shows large ceiling but not public API yet |
 
 ## Optimization Plan 2
 
@@ -288,3 +289,15 @@ Plan 3 acceptance rule:
      `ParseResult` monotonic resource preserved normal `.list` usage, but the
      allocator indirection was slower across most parse cases and query
      throughput dropped to 9.43M-9.53M queries/s.
+
+7. Flat node arena prototype.
+   - Kept as a benchmark-only prototype. It parses into contiguous flat nodes
+     with parent indices and source text views, without materializing the public
+     recursive `Value` tree.
+   - Measured `flat_assets_50k` at 164.51 MiB/s versus the public tree around
+     45-46 MiB/s in nearby runs.
+   - Measured `flat_wide_10k` at 277.66 MiB/s versus the public tree around
+     119-132 MiB/s in nearby runs.
+   - This proves there is still a large ceiling, but making it the normal
+     `parse(text)` path requires a deliberate public representation rewrite or a
+     compatibility wrapper over flat storage.

@@ -40,6 +40,31 @@ catch parser-level improvements, not full application startup behavior.
 | 2026-05-21 | Fill parser output values directly instead of assigning `Value{}` | 59.22-60.97 | 36.45-36.85 | Kept |
 | 2026-05-21 | Remove defensive output field clears | 62.33 | 36.17 | Reverted; large case slower and invariant was less explicit |
 
+## Plan 3 Benchmark Baseline
+
+The benchmark suite now covers more than the original asset parse shape. The
+first run below is the baseline after adding the benchmark cases and before
+Plan 3 optimization attempts.
+
+| Date | Case | Metric | Result |
+| --- | --- | --- | ---: |
+| 2026-05-21 | assets_1k | MiB/s | 57.35 |
+| 2026-05-21 | assets_10k | MiB/s | 35.73 |
+| 2026-05-21 | assets_50k | MiB/s | 36.74 |
+| 2026-05-21 | small_files_1k | MiB/s | 103.42 |
+| 2026-05-21 | strings_plain_5k | MiB/s | 149.94 |
+| 2026-05-21 | strings_escaped_5k | MiB/s | 159.95 |
+| 2026-05-21 | deep_1k | MiB/s | 63.23 |
+| 2026-05-21 | wide_10k | MiB/s | 104.25 |
+| 2026-05-21 | query_assets_10k | queries/s | 6,521,070 |
+
+## Plan 3 Results
+
+| Date | Change | Main target | Result |
+| --- | --- | --- | --- |
+| 2026-05-21 | Add expanded benchmark suite | Measurement coverage | Kept |
+| 2026-05-21 | Use `std::from_chars` in extraction helpers | `query_assets_10k` | Kept; improved from 6.52M to 9.93M-10.13M queries/s |
+
 ## Optimization Plan 2
 
 Constraint: keep the normal user-facing API centered on `gsexp::parse(text)`.
@@ -220,3 +245,19 @@ Plan 3 acceptance rule:
    must not materially regress the huge asset case.
 3. Representation changes need a larger bar: clear speed or memory wins, simple
    ownership rules, and no second confusing parse API.
+
+## Optimization Plan 3 Status
+
+1. Expanded benchmark suite.
+   - Kept. Added many-small-files, huge asset database, plain/escaped string,
+     deep nesting, wide list, and extraction/query cases.
+
+2. Extraction helper numeric parsing.
+   - Kept. `extract_int` and `extract_float` now use `std::from_chars` after the
+     existing numeric shape checks.
+   - `query_assets_10k` improved from 6.52M queries/s to 9.93M-10.13M queries/s
+     in repeated runs.
+
+3. Representation changes.
+   - Not started yet. The next candidate should be chosen using the expanded
+     benchmark suite, not just `assets_1k` and `assets_10k`.

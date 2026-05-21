@@ -1,8 +1,6 @@
 #include "gsexp/sexp.hpp"
 
-#include <cctype>
-#include <cmath>
-#include <limits>
+#include <charconv>
 
 namespace gsexp {
 namespace {
@@ -396,11 +394,12 @@ std::optional<int> extract_int(const Value& list, std::string_view symbol) {
 
     const Value& value = node->list[1];
     if (value.type == ValueType::Atom && looks_like_integer(value.text)) {
-        try {
-            return std::stoi(value.text);
-        } catch (...) {
-            return std::nullopt;
-        }
+        int parsed = 0;
+        const char* begin = value.text.data();
+        const char* end = begin + value.text.size();
+        auto result = std::from_chars(begin, end, parsed);
+        if (result.ec == std::errc{} && result.ptr == end)
+            return parsed;
     }
 
     return std::nullopt;
@@ -414,11 +413,12 @@ std::optional<float> extract_float(const Value& list, std::string_view symbol) {
     const Value& value = node->list[1];
     if (value.type == ValueType::Atom &&
         (looks_like_float(value.text) || looks_like_integer(value.text))) {
-        try {
-            return std::stof(value.text);
-        } catch (...) {
-            return std::nullopt;
-        }
+        float parsed = 0.0f;
+        const char* begin = value.text.data();
+        const char* end = begin + value.text.size();
+        auto result = std::from_chars(begin, end, parsed);
+        if (result.ec == std::errc{} && result.ptr == end)
+            return parsed;
     }
 
     return std::nullopt;

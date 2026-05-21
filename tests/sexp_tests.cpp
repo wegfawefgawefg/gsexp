@@ -69,10 +69,29 @@ void test_escaped_string_storage() {
 }
 
 void test_int_range() {
-    std::string out_of_range = std::to_string(std::numeric_limits<int>::max()) + "000";
-    gsexp::ParseResult result = gsexp::parse("(root (value " + out_of_range + "))");
-    require(result.ok, "parse out-of-range int");
-    require(!gsexp::FormView(result.root(0)).get_int("value").has_value(), "reject out-of-range int");
+    std::string max_int = std::to_string(std::numeric_limits<int>::max());
+    std::string min_int = std::to_string(std::numeric_limits<int>::min());
+    std::string too_large = max_int + "0";
+    std::string too_small = min_int + "0";
+    gsexp::ParseResult result = gsexp::parse("(root"
+                                             " (max " +
+                                             max_int +
+                                             ")"
+                                             " (min " +
+                                             min_int +
+                                             ")"
+                                             " (too_large " +
+                                             too_large +
+                                             ")"
+                                             " (too_small " +
+                                             too_small +
+                                             "))");
+    require(result.ok, "parse int range input");
+    gsexp::FormView root(result.root(0));
+    require(root.get_int("max") == std::numeric_limits<int>::max(), "accept max int");
+    require(root.get_int("min") == std::numeric_limits<int>::min(), "accept min int");
+    require(!root.get_int("too_large").has_value(), "reject too-large int");
+    require(!root.get_int("too_small").has_value(), "reject too-small int");
 }
 
 void test_numeric_rejections() {

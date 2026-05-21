@@ -251,6 +251,7 @@ Attempt results so far:
 | Use `std::sort` instead of `std::stable_sort` for child indexes | Rejected. Stable ordering is not required for correctness, but the measured run regressed relevant cases: `query_many_keys_last` fell to 3.70M queries/s, `query_find_many_keys_last` fell to 4.72M queries/s, and `query_assets_10k` fell to 10.57M queries/s. The stable sort path was restored. |
 | Resize plus `memcpy` for decoded string chunks | Rejected. Replacing `decoded_text.insert()` with a manual resize plus `memcpy` helper regressed the escaped string benchmark to 437.81 MiB/s and also hurt unrelated parse cases in the measured run. The original `vector::insert` path was restored. |
 | ASCII fast path in whitespace/comment skipper | Rejected. Checking `byte > ' '` before the full whitespace predicate improved some asset parse cases, but it was not broad enough: `code_forms_2k` fell to 230.94 MiB/s, `strings_plain_5k` fell to 974.72 MiB/s, and `wide_10k` fell to 306.75 MiB/s in the measured run. The simpler original skipper was restored. |
+| Combined integer validation and conversion | Rejected. Boundary tests for `INT_MIN`, `INT_MAX`, and overflow were added and passed, but the custom conversion did not produce a clear query-suite win. `query_first_10k` improved to 14.17M queries/s, but `query_many_keys_last` fell to 4.61M queries/s and `query_find_many_keys_last` fell to 4.65M queries/s, so the `looks_like_integer` plus `from_chars` path was restored. |
 
 Work order:
 

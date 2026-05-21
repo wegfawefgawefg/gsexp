@@ -35,12 +35,16 @@ bool is_string_special(char c) {
 }
 
 int first_set_bit(std::uint32_t mask) {
+#if defined(__GNUC__) || defined(__clang__)
+    return __builtin_ctz(mask);
+#else
     int bit = 0;
     while ((mask & 1u) == 0u) {
         mask >>= 1u;
         ++bit;
     }
     return bit;
+#endif
 }
 
 #if GSEXP_PARSE_SSE2

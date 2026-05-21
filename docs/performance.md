@@ -27,41 +27,41 @@ Latest verified Plan 11 results on this machine:
 
 | Case | Result |
 | --- | ---: |
-| assets_10k | 174.88 MiB/s |
-| assets_50k | 165.28 MiB/s |
-| asset_database_5k | 253.76 MiB/s |
-| asset_database_5k_owned | 246.82 MiB/s |
-| asset_database_5k_file_read | 369.13 MiB/s |
-| asset_database_5k_file_owned | 142.79 MiB/s |
-| small_files_1k | 145.27 MiB/s |
-| strings_plain_5k | 788.50 MiB/s |
-| strings_escaped_5k | 507.71 MiB/s |
-| deep_1k | 171.55 MiB/s |
-| wide_10k | 244.18 MiB/s |
-| query_assets_10k | 14.76M queries/s |
-| query_first_10k | 10.44M queries/s |
-| query_last_10k | 7.54M queries/s |
-| query_missing_10k | 10.40M queries/s |
-| query_string_view_10k | 12.67M queries/s |
-| query_text_only_10k | 37.13M queries/s |
-| query_symbol_compare_10k | 28.56M queries/s |
-| query_many_keys_last | 5.65M queries/s |
-| query_find_many_keys_last | 6.33M queries/s |
-| query_child_at_many_keys_last | 4.93M queries/s |
+| assets_10k | 233.34 MiB/s |
+| assets_50k | 208.44 MiB/s |
+| asset_database_5k | 296.71 MiB/s |
+| asset_database_5k_owned | 284.59 MiB/s |
+| asset_database_5k_file_read | 367.56 MiB/s |
+| asset_database_5k_file_owned | 161.24 MiB/s |
+| small_files_1k | 196.13 MiB/s |
+| strings_plain_5k | 918.15 MiB/s |
+| strings_escaped_5k | 645.53 MiB/s |
+| deep_1k | 122.99 MiB/s |
+| wide_10k | 272.55 MiB/s |
+| query_assets_10k | 15.72M queries/s |
+| query_first_10k | 12.42M queries/s |
+| query_last_10k | 6.85M queries/s |
+| query_missing_10k | 10.80M queries/s |
+| query_string_view_10k | 12.96M queries/s |
+| query_text_only_10k | 38.37M queries/s |
+| query_symbol_compare_10k | 29.93M queries/s |
+| query_many_keys_last | 5.67M queries/s |
+| query_find_many_keys_last | 4.84M queries/s |
+| query_child_at_many_keys_last | 4.44M queries/s |
 
 Latest yyjson comparison results:
 
 | Equivalent case | gsexp | yyjson | yyjson/gsexp |
 | --- | ---: | ---: | ---: |
-| assets_10k parse | 174.88 MiB/s | 572.43 MiB/s | 3.27x |
-| assets_50k parse | 165.28 MiB/s | 652.36 MiB/s | 3.95x |
-| asset_database_5k parse | 253.76 MiB/s | 736.07 MiB/s | 2.90x |
-| small_files_1k parse | 145.27 MiB/s | 545.70 MiB/s | 3.76x |
-| strings_plain_5k parse | 788.50 MiB/s | 1442.96 MiB/s | 1.83x |
-| strings_escaped_5k parse | 507.71 MiB/s | 1282.94 MiB/s | 2.53x |
-| wide_10k parse | 244.18 MiB/s | 839.41 MiB/s | 3.44x |
-| assets_10k lookup | 14.76M queries/s | 113.40M queries/s | 7.68x |
-| many_keys_last lookup | 5.65M queries/s | 11.33M queries/s | 2.01x |
+| assets_10k parse | 233.34 MiB/s | 643.50 MiB/s | 2.76x |
+| assets_50k parse | 208.44 MiB/s | 681.19 MiB/s | 3.27x |
+| asset_database_5k parse | 296.71 MiB/s | 790.75 MiB/s | 2.67x |
+| small_files_1k parse | 196.13 MiB/s | 562.27 MiB/s | 2.87x |
+| strings_plain_5k parse | 918.15 MiB/s | 1334.70 MiB/s | 1.45x |
+| strings_escaped_5k parse | 645.53 MiB/s | 1118.22 MiB/s | 1.73x |
+| wide_10k parse | 272.55 MiB/s | 828.09 MiB/s | 3.04x |
+| assets_10k lookup | 15.72M queries/s | 101.01M queries/s | 6.43x |
+| many_keys_last lookup | 5.67M queries/s | 11.88M queries/s | 2.10x |
 
 These are equivalent data shapes, not byte-identical files. The JSON fixtures
 are generated beside the S-expression fixtures and measured by each format's
@@ -219,12 +219,12 @@ Plan 11 is allowed to heavily change internals while keeping the public
 `Node`/`FormView` API stable. The target is a representation that is faster to
 walk, faster to query, and closer to contiguous memory.
 
-Current gap after Plan 10:
+Current gap during Plan 11:
 
-1. `assets_10k` parse is still about 3.03x behind yyjson on the latest run.
-2. `asset_database_5k` parse is still about 3.05x behind yyjson.
-3. `assets_10k` lookup improved, but is still about 6.18x behind yyjson.
-4. `many_keys_last` lookup improved, but is still about 2.67x behind yyjson.
+1. `assets_10k` parse is about 2.76x behind yyjson on the latest Plan 11 run.
+2. `asset_database_5k` parse is about 2.67x behind yyjson.
+3. `assets_10k` lookup is about 6.43x behind yyjson.
+4. `many_keys_last` lookup is about 2.10x behind yyjson.
 5. The public API is now clean enough that internal representation churn should
    not force another user-facing rewrite.
 
@@ -240,6 +240,8 @@ Attempt results so far:
 | Head metadata in list text fields | Rejected. It kept `NodeData` at 24 bytes, but it slowed parse by mutating parent list text fields on first-child append and did not improve lookup. |
 | Remove `FormView` last-lookup cache | Kept. The cache was not used by the hot `get_*` path and only helped repeated `find()` of the same key on the same view. Removing it simplifies `FormView` and removes one string comparison from `find()`. |
 | Flat child-index lookup table | Kept. Wide-form lookup now uses a direct `list_index -> cache_index` table after the first wide lookup. It improved `query_many_keys_last` from 4.94M to 5.65M queries/s and `query_find_many_keys_last` from 4.58M to 6.33M queries/s. The table is allocated lazily only when wide-form indexes are used. |
+| Flat index-entry arena | Rejected. Replacing one vector per lazy wide-form index with one shared `child_index_entries` arena regressed the target wide lookup cases in the measured run: `query_many_keys_last` fell to 5.20M queries/s and `query_find_many_keys_last` fell to 4.88M queries/s. The retained memory shape was simpler, but the lookup path lost enough locality or iterator simplicity to reject it. |
+| Compiler CTZ for SSE2 movemask result | Kept. A same-session A/B run against the manual first-set-bit loop improved important parse cases: `assets_10k` went from 216.00 to 233.34 MiB/s, `asset_database_5k` from 260.47 to 296.71 MiB/s, and `strings_escaped_5k` from 588.81 to 645.53 MiB/s. The fallback loop remains for non-GCC/non-Clang compilers. |
 
 Work order:
 
@@ -318,6 +320,129 @@ Work order:
     Keep `Node` and `FormView` public behavior stable. Only add public API if
     benchmarks prove users need explicit symbol handles or caller-side compiled
     keys.
+
+Extended experiment queue:
+
+1. Flat index-entry arena.
+   Replace `std::vector<KeyIndexEntry>` inside each lazy child index with one
+   shared `child_index_entries` arena plus `first_entry + entry_count` ranges.
+   This should reduce retained heap objects for wide-form workloads. Keep only
+   if lookup or retained memory improves without making the code harder to
+   inspect.
+
+2. Head-only side metadata.
+   Store form-head metadata outside `NodeData` instead of widening every node or
+   mutating parent list fields during parse. Candidate shapes are a vector
+   indexed by list node or a compact table only for list nodes that have atom
+   heads.
+
+3. Head-only interning.
+   Intern only form heads and operator-like atoms first. This targets lookup
+   keys such as `id`, `path`, `x`, and code heads without forcing all string
+   payloads through an intern table. Compare symbol-ID lookup to text lookup.
+
+4. Caller key resolution without a second public API.
+   If head interning helps, resolve caller string keys through storage-internal
+   lookup inside `FormView`. Avoid exposed compiled-key handles unless measured
+   repeated-call overhead proves they are necessary.
+
+5. Flat node arena with child spans.
+   Retry child spans with a cleaner construction strategy after other hot spots
+   are measured. The first attempt proved that smaller nodes alone do not win
+   if finalization and child lookup get slower.
+
+6. Parser event/tape builder.
+   Try a parse-time tape or event stream that records list starts, atoms, and
+   closes, then builds the retained tree in one predictable pass. Reject if it
+   only adds another representation without removing cost elsewhere.
+
+7. One-pass retained builder.
+   Try building final child ranges directly while parsing, using stack frames
+   that own contiguous output ranges. This is harder than sibling links but may
+   remove the expensive finalization pass from the rejected child-span attempt.
+
+8. Atom scanner specialization.
+   Split atom scanning into the common no-escape, no-comment, no-delimiter fast
+   path and the slower diagnostic path. The hot loop should mostly advance over
+   plain bytes and only branch at delimiters.
+
+9. String scanner specialization.
+   Keep plain string views when no escapes are present and decode only escaped
+   strings into `owned_text`. Measure plain and escaped strings separately, as
+   they have very different ceilings.
+
+10. Whitespace and comment skipping.
+    Tighten the skip loop because every benchmark pays it. Try simple
+    table-driven classification before SIMD. Reject clever code if branch
+    prediction already wins.
+
+11. Numeric token classification.
+    Preserve atom-first semantics, but classify likely integer and decimal
+    tokens cheaply enough that `FormView::get_int()` and `get_float()` avoid
+    duplicate work. Add tests before changing accepted numeric shapes.
+
+12. Numeric conversion specialization.
+    Try custom integer conversion and simple decimal float conversion for common
+    asset data. Keep `from_chars` fallback for correctness and uncommon shapes.
+
+13. Allocation reservation policy.
+    Improve reserve estimates for nodes, owned text, child indexes, symbol
+    tables, and lazy indexes. Track capacity in benchmark output so wins are not
+    just hidden memory growth.
+
+14. Small-vector avoidance.
+    Avoid per-form heap allocation in lazy indexes and temporary builder data.
+    Prefer flat arenas or fixed-size stack buffers where the measured workload
+    repeatedly builds small structures.
+
+15. Cache threshold tuning.
+    Re-test the direct-scan versus lazy-index threshold after each
+    representation change. The correct threshold may move once symbol IDs or
+    flat indexes exist.
+
+16. Common asset lookup benchmark.
+    Keep the current lookup benchmarks, but add fixtures that are not only
+    record-shaped. The parser may later handle code-like input, so optimizing
+    only `(asset (id ...) ...)` would be too narrow.
+
+17. Larger generated fixtures.
+    Add larger asset databases, mixed strings, mixed numeric fields, deep forms,
+    wide forms, and code-like forms. Compare both parse throughput and query
+    throughput against yyjson equivalents where a JSON shape makes sense.
+
+18. Real fixture import.
+    Add real project data once available. Synthetic data is useful for drag
+    races, but final decisions should also use files that resemble actual game
+    assets and tool output.
+
+19. SIMD delimiter scan.
+    Add optional SSE2 delimiter scanning for atom and whitespace-heavy input
+    after scalar scanner changes settle. Keep scalar fallback compiled and
+    benchmarked.
+
+20. SIMD string scan.
+    Add optional SIMD quote/backslash detection for long plain strings. This
+    should target the plain string benchmark first and must not slow short
+    strings.
+
+21. Memory layout audit.
+    Recheck `sizeof(NodeData)`, vector capacities, and retained bytes after each
+    kept change. A parse win that bloats retained memory needs a workload-based
+    justification.
+
+22. Error-path audit.
+    Keep diagnostics useful while moving hot loops. Fast success paths are fine,
+    but malformed input should still report practical file offsets and reasons.
+
+23. Public API audit.
+    After internals settle, remove accidental exposure of implementation details
+    and document the one normal consumption path. Avoid compatibility wrappers
+    because there are no external consumers yet.
+
+24. Glayout integration check.
+    Build `glayout` after any API or vendoring-impacting change. `glayout` is
+    the current real consumer and should catch usability regressions earlier
+    than synthetic benchmarks.
 
 Candidate representation sketches:
 

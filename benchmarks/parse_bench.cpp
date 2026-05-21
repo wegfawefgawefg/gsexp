@@ -285,6 +285,7 @@ enum class QueryMode {
     ManyLast,
     FindOnly,
     ChildAtValue,
+    FindArgValue,
 };
 
 double run_query_once(gsexp::Node root, int iterations, QueryMode mode) {
@@ -388,6 +389,15 @@ double run_query_once(gsexp::Node root, int iterations, QueryMode mode) {
                     gsexp::Node value = node.child_at(1);
                     if (!value.valid()) {
                         std::cerr << "child-at query benchmark missing value\n";
+                        std::exit(1);
+                    }
+                    sink += static_cast<double>(value.text().size());
+                    continue;
+                }
+                if (mode == QueryMode::FindArgValue) {
+                    gsexp::Node value = asset_form.find_arg("key_23", 0);
+                    if (!value.valid()) {
+                        std::cerr << "find-arg query benchmark missing value\n";
                         std::exit(1);
                     }
                     sink += static_cast<double>(value.text().size());
@@ -675,6 +685,7 @@ int main() {
     run_query_case("query_many_keys_last", many_keys_data, 5000, 200, QueryMode::ManyLast);
     run_query_case("query_find_many_keys_last", many_keys_data, 5000, 200, QueryMode::FindOnly);
     run_query_case("query_child_at_many_keys_last", many_keys_data, 5000, 200, QueryMode::ChildAtValue);
+    run_query_case("query_find_arg_many_keys_last", many_keys_data, 5000, 200, QueryMode::FindArgValue);
     scan_probe::run_case("scan_probe_asset_database_5k", asset_database_5k, 1000);
 #if GSEXP_HAVE_YYJSON
     yyjson_bench::run_parse_case("yyjson_assets_10k", asset_json_10k, 50);

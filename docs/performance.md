@@ -227,14 +227,21 @@ API: `parse`/`parse_owned`, then `Node` and `FormView`. The target is a
 representation that is faster to walk, faster to query, and closer to
 contiguous memory without asking users to switch to a second "fast" reader.
 
-Current gap during Plan 11:
+Current gap during Plan 11, refreshed on the clean `5fd4fa7` plus later
+documentation commits baseline:
 
-1. `assets_10k` parse is about 2.71x behind yyjson on the latest Plan 11 run.
-2. `asset_database_5k` parse is about 2.68x behind yyjson.
-3. `code_forms_2k` parse is about 2.53x behind yyjson.
-4. `assets_10k` lookup is about 4.58x behind yyjson.
-5. `asset_database_5k` lookup is about 3.39x behind yyjson.
-6. `many_keys_last` lookup is about 1.96x behind yyjson.
+1. `assets_10k` parse is about 3.00x behind yyjson: 239.21 MiB/s versus
+   718.27 MiB/s on the latest clean run.
+2. `asset_database_5k` parse is about 2.72x behind yyjson: 303.10 MiB/s
+   versus 825.69 MiB/s.
+3. `code_forms_2k` parse is about 2.49x behind yyjson: 266.07 MiB/s versus
+   661.96 MiB/s.
+4. `assets_10k` lookup is about 5.04x behind yyjson: 25.51M q/s versus
+   128.64M q/s.
+5. `asset_database_5k` lookup is about 3.00x behind yyjson: 22.61M q/s versus
+   67.75M q/s.
+6. `many_keys_last` lookup is about 1.85x behind yyjson: 7.81M q/s versus
+   14.41M q/s.
 7. The public API is now clean enough that internal representation churn should
    not force another user-facing rewrite.
 

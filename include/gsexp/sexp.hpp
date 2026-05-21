@@ -49,6 +49,7 @@ struct Token {
 };
 
 constexpr std::uint32_t invalid_node = 0xffffffffu;
+constexpr std::uint16_t invalid_child_index_cache = 0xffffu;
 
 struct NodeData {
     std::uint32_t text_offset = 0;
@@ -82,7 +83,7 @@ struct ParseStorage {
     std::vector<NodeData> nodes;
     std::vector<ChildCountOverflow> child_count_overflows;
     mutable std::vector<ChildIndexCache> child_indexes;
-    mutable std::vector<std::uint32_t> child_index_lookup;
+    mutable std::vector<std::uint16_t> child_index_lookup;
 };
 
 struct StorageStats {

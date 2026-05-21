@@ -121,19 +121,22 @@ std::uint32_t find_child_index(const ParseStorage& storage,
         return find_child_index_direct(storage, list, searched_head);
 
     if (storage.child_index_lookup.empty())
-        storage.child_index_lookup.assign(storage.nodes.size(), invalid_node);
+        storage.child_index_lookup.assign(storage.nodes.size(), invalid_child_index_cache);
 
-    std::uint32_t cache_index = storage.child_index_lookup[list_index];
-    if (cache_index == invalid_node) {
+    std::uint16_t cache_index = storage.child_index_lookup[list_index];
+    if (cache_index == invalid_child_index_cache) {
         ChildIndexCache cache;
         cache.list = list_index;
         cache.entries = build_child_index(storage, list);
-        cache_index = static_cast<std::uint32_t>(storage.child_indexes.size());
+        if (storage.child_indexes.size() >= invalid_child_index_cache)
+            return find_child_index_direct(storage, list, searched_head);
+
+        cache_index = static_cast<std::uint16_t>(storage.child_indexes.size());
         storage.child_indexes.push_back(std::move(cache));
         storage.child_index_lookup[list_index] = cache_index;
     }
 
-    const std::vector<KeyIndexEntry>& entries = storage.child_indexes[cache_index].entries;
+    const std::vector<KeyIndexEntry>& entries = storage.child_indexes[static_cast<std::size_t>(cache_index)].entries;
     auto entry = std::lower_bound(entries.begin(),
                                   entries.end(),
                                   searched_head,

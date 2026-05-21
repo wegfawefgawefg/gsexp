@@ -113,7 +113,7 @@ StorageStats ParseResult::storage_stats() const {
                               storage->child_count_overflows.capacity() * sizeof(ChildCountOverflow) +
                               storage->decoded_text.capacity() +
                               stats.child_index_capacity * sizeof(ChildIndexCache) +
-                              stats.child_index_lookup_capacity * sizeof(std::uint32_t) +
+                              stats.child_index_lookup_capacity * sizeof(std::uint16_t) +
                               stats.child_index_entry_capacity * sizeof(KeyIndexEntry);
     return stats;
 }

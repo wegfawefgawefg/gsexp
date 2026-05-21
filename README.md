@@ -12,6 +12,12 @@ line/column diagnostics. It is not a Lisp interpreter. It has no evaluator,
 macros, schema system, file search policy, or dependencies outside the C++
 standard library.
 
+## Screenshot
+
+<p>
+  <img src="assets/screenshot.png" alt="gsexp screenshot" width="640">
+</p>
+
 ## Target
 
 - `gsexp::gsexp`: parser, tokenizer, value helpers, and string quoting.

@@ -102,6 +102,26 @@ inline std::uint32_t value_child(const gsexp::ParseStorage& storage, const gsexp
     return storage.nodes[field.first_child].next_sibling;
 }
 
+inline std::uint32_t next_valid_sibling(const gsexp::ParseStorage& storage, std::uint32_t node_index) {
+    if (node_index == gsexp::invalid_node || node_index >= storage.nodes.size())
+        return gsexp::invalid_node;
+    return storage.nodes[node_index].next_sibling;
+}
+
+inline std::uint32_t required_value_child(const gsexp::ParseStorage& storage, std::uint32_t field_index) {
+    if (field_index == gsexp::invalid_node || field_index >= storage.nodes.size()) {
+        std::cerr << "internal ordered asset probe missing field\n";
+        std::exit(1);
+    }
+
+    std::uint32_t value_index = value_child(storage, storage.nodes[field_index]);
+    if (value_index == gsexp::invalid_node || value_index >= storage.nodes.size()) {
+        std::cerr << "internal ordered asset probe missing value\n";
+        std::exit(1);
+    }
+    return value_index;
+}
+
 inline double run_asset_query_once(const gsexp::ParseResult& result, int iterations) {
     const gsexp::ParseStorage& storage = *result.storage;
     std::uint32_t root_index = result.roots[0];
@@ -178,6 +198,49 @@ inline double run_asset_query_once(const gsexp::ParseResult& result, int iterati
     auto end = std::chrono::steady_clock::now();
     if (sink == 0.0) {
         std::cerr << "internal asset query probe did no work\n";
+        std::exit(1);
+    }
+    return std::chrono::duration<double>(end - start).count();
+}
+
+inline double run_ordered_asset_query_once(const gsexp::ParseResult& result, int iterations) {
+    const gsexp::ParseStorage& storage = *result.storage;
+    std::uint32_t root_index = result.roots[0];
+    if (root_index >= storage.nodes.size()) {
+        std::cerr << "internal ordered asset probe has invalid root\n";
+        std::exit(1);
+    }
+
+    double sink = 0.0;
+    auto start = std::chrono::steady_clock::now();
+    for (int iteration = 0; iteration < iterations; ++iteration) {
+        std::uint32_t asset_index = next_valid_sibling(storage, storage.nodes[root_index].first_child);
+        while (asset_index != gsexp::invalid_node && asset_index < storage.nodes.size()) {
+            const gsexp::NodeData& asset = storage.nodes[asset_index];
+            std::uint32_t id_field = next_valid_sibling(storage, asset.first_child);
+            std::uint32_t path_field = next_valid_sibling(storage, id_field);
+            std::uint32_t type_field = next_valid_sibling(storage, path_field);
+            std::uint32_t x_field = next_valid_sibling(storage, type_field);
+            std::uint32_t y_field = next_valid_sibling(storage, x_field);
+
+            std::uint32_t id_value = required_value_child(storage, id_field);
+            std::uint32_t path_value = required_value_child(storage, path_field);
+            std::uint32_t x_value = required_value_child(storage, x_field);
+            std::uint32_t y_value = required_value_child(storage, y_field);
+
+            int id = parse_required_int(node_text(storage, storage.nodes[id_value]));
+            std::string_view path = node_text(storage, storage.nodes[path_value]);
+            float x = cached_required_float(storage, x_value);
+            float y = cached_required_float(storage, y_value);
+
+            sink += static_cast<double>(id) + static_cast<double>(x) + static_cast<double>(y) +
+                    static_cast<double>(path.size());
+            asset_index = asset.next_sibling;
+        }
+    }
+    auto end = std::chrono::steady_clock::now();
+    if (sink == 0.0) {
+        std::cerr << "internal ordered asset probe did no work\n";
         std::exit(1);
     }
     return std::chrono::duration<double>(end - start).count();

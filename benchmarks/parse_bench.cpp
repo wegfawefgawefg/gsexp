@@ -458,6 +458,31 @@ void run_internal_asset_query_case(const char* name, const std::string& text, in
     print_storage_stats(name, result);
 }
 
+void run_internal_ordered_asset_query_case(const char* name,
+                                           const std::string& text,
+                                           int items,
+                                           int iterations) {
+    gsexp::ParseResult result = gsexp::parse(text);
+    if (!result.ok || result.root_count() == 0) {
+        std::cerr << "parse failed before internal ordered asset query probe: " << name << "\n";
+        std::exit(1);
+    }
+
+    double best_seconds = 0.0;
+    for (int run = 0; run < 3; ++run) {
+        double seconds = internal_probe::run_ordered_asset_query_once(result, iterations);
+        if (best_seconds == 0.0 || seconds < best_seconds)
+            best_seconds = seconds;
+    }
+
+    std::size_t queries = static_cast<std::size_t>(items) * static_cast<std::size_t>(iterations) * 4u;
+    double queries_per_second = static_cast<double>(queries) / best_seconds;
+    std::cout << name << " items=" << items << " queries=" << queries
+              << " best_of=3 seconds=" << best_seconds
+              << " queries_per_second=" << queries_per_second << "\n";
+    print_storage_stats(name, result);
+}
+
 double run_asset_database_query_once(gsexp::Node root, int iterations) {
     double sink = 0.0;
 
@@ -637,6 +662,7 @@ int main() {
     run_parse_case("wide_10k", wide_10k, 50);
     run_query_case("query_assets_10k", assets_10k, 10000, 100, QueryMode::Common);
     run_internal_asset_query_case("query_internal_assets_10k", assets_10k, 10000, 100);
+    run_internal_ordered_asset_query_case("query_internal_ordered_assets_10k", assets_10k, 10000, 100);
     run_query_case("query_first_10k", assets_10k, 10000, 500, QueryMode::First);
     run_query_case("query_last_10k", assets_10k, 10000, 500, QueryMode::Last);
     run_query_case("query_missing_10k", assets_10k, 10000, 500, QueryMode::Missing);

@@ -43,6 +43,7 @@ Latest verified Plan 11 results on this machine:
 | wide_10k | 337.86 MiB/s |
 | query_assets_10k | 23.47M queries/s |
 | query_internal_assets_10k | 38.96M queries/s |
+| query_internal_ordered_assets_10k | 55.77M queries/s |
 | query_first_10k | 15.05M queries/s |
 | query_last_10k | 11.29M queries/s |
 | query_missing_10k | 14.40M queries/s |
@@ -356,6 +357,7 @@ Attempt results so far:
 | Remove redundant value-form checks | Rejected. `find_child_index()` already returns child forms with valid atom heads, so `find_arg_data()` and `find_arg_index()` tried dropping the repeated child type/head check. The measured result was mixed and hurt adjacent lookup workloads: `query_assets_10k` reached 25.36M q/s, but `query_asset_database_5k` fell to 22.22M q/s, `query_many_keys_last` to 7.05M q/s, `query_find_many_keys_last` to 6.70M q/s, and `query_child_at_many_keys_last` to 6.84M q/s. The defensive checks were restored. |
 | Internal storage-walk asset query probe | Kept. This is benchmark-only ceiling measurement, not a public API. The probe walks `ParseStorage` and `NodeData` directly, scans each asset form once, and extracts `id`, `x`, `y`, and `path`. The first run measured `query_internal_assets_10k` at 30.48M q/s versus normal `FormView` `query_assets_10k` at 23.53M q/s and yyjson at 127.37M q/s in the same run. After the probe was corrected to use the same lazy float cache behavior as `FormView`, it reached 38.96M q/s versus normal `FormView` at 24.34M q/s and yyjson at 97.64M q/s. The result shows repeated public lookup overhead is real but not the whole gap; retained representation, child traversal, text comparison, and conversion costs still dominate enough that a public batch/cursor API would be the wrong next step. |
 | Private hot-key classifier | Rejected. Direct small-form lookup tried classifying caller keys such as `id`, `path`, `x`, `y`, and `h` once per lookup, then using fixed byte checks instead of `memcmp`. It did not improve the target path: `query_assets_10k` measured 24.10M q/s versus the corrected-probe baseline at 24.34M q/s, and `query_asset_database_5k` fell to 21.85M q/s. Wide lookup movement was mixed, so the generic checked `memcmp` path was restored. |
+| Internal ordered asset query probe | Kept. This is another benchmark-only ceiling probe, not a public API. It uses the fixed generated asset fixture field order to extract `id`, `path`, `x`, and `y` by sibling position without key matching. The first measured run had normal `query_assets_10k` at 24.11M q/s, internal scan-by-key at 35.72M q/s, internal ordered lookup at 55.77M q/s, and yyjson at 112.68M q/s. This confirms key matching and repeated scans are a large part of the common asset gap, but the ordered path is too record-specific to expose. The production direction remains internal form-state, key metadata, or representation changes behind normal `FormView`. |
 
 Current pending Plan 11 queue:
 

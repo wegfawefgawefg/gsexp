@@ -250,35 +250,29 @@ API: `parse`/`parse_owned`, then `Node` and `FormView`. The target is a
 representation that is faster to walk, faster to query, and closer to
 contiguous memory without asking users to switch to a second "fast" reader.
 
-Current gap during Plan 11, refreshed on the clean `5fd4fa7` plus later
-documentation commits baseline:
+Current Plan 11 status:
 
-1. `assets_10k` parse is about 3.00x behind yyjson: 239.21 MiB/s versus
-   718.27 MiB/s on the latest clean run.
-2. `asset_database_5k` parse is about 2.72x behind yyjson: 303.10 MiB/s
-   versus 825.69 MiB/s.
-3. `code_forms_2k` parse is about 2.49x behind yyjson: 266.07 MiB/s versus
-   661.96 MiB/s.
-4. `assets_10k` lookup is about 5.04x behind yyjson: 25.51M q/s versus
-   128.64M q/s.
-5. `asset_database_5k` lookup is about 3.00x behind yyjson: 22.61M q/s versus
-   67.75M q/s.
-6. `many_keys_last` lookup is about 1.85x behind yyjson: 7.81M q/s versus
-   14.41M q/s.
-7. The public API is now clean enough that internal representation churn should
-   not force another user-facing rewrite.
+1. Active optimization is paused. The current implementation is fast enough for
+   the intended near-term `glayout` and game-asset use, and future performance
+   work should resume from the measured attempt log instead of repeating
+   rejected cache and wrapper experiments.
+2. Latest recorded yyjson gaps are about 2.3x-3.0x on most retained-tree parse
+   cases, 1.23x-1.64x on string-heavy parse cases, 2.17x-2.34x on asset lookup
+   cases, and 1.53x on the wide-key lookup case.
+3. The public API is clean enough that future representation churn should not
+   force another user-facing rewrite.
 
-Public API direction:
+Public API direction for future work:
 
 1. Keep one normal consumption path: `parse`/`parse_owned`, then `Node` and
    `FormView`.
 2. Do not add a second public batch/cursor API just to win benchmarks. yyjson's
    compared path uses one loaded document and normal repeated object lookup;
    `gsexp` should make normal `FormView::get_*` calls competitive.
-3. `FormView` should no longer be treated as necessarily stateless. It may hold
-   tiny mutable state, a storage-cache handle, or a pointer/id into
-   `ParseStorage` if that makes the same public API faster.
-4. Storage-owned caches are preferred over user-visible helper objects. A normal
+3. `FormView` should stay the normal query API. Several stateful cache attempts
+   have been rejected, so future state should be representation-backed or
+   narrowly targeted rather than another broad small-form value cache.
+4. Storage-owned metadata is preferred over user-visible helper objects. A normal
    caller should not need to choose between a "simple" API and a "fast" API.
    The fast path should be hidden behind `FormView`.
 5. Benchmark-only scan-once or cursor experiments are allowed only to identify
@@ -434,44 +428,41 @@ Attempt results so far:
 | Mixed ordered/named layout access fixture | Kept. The benchmark suite now reports `query_mixed_layout_access_5k`, which uses the existing layout-shaped fixture to combine ordered child traversal, `FormView::get_int()`, `FormView::find_arg()`, and `FormView::find()` on the same forms. First measured run: `query_nested_find_arg_5k` reached 24.20M q/s in the same filtered run, while the new mixed fixture reached 41.50M operations/s over 10.00M counted operations. This is measurement support for future representation and cache work so optimizations cannot only improve named lookup while regressing ordered traversal. |
 | Mixed layout transition benchmarks | Kept. The benchmark suite now reports `query_mixed_layout_access_5k_cold_once` and `query_mixed_layout_access_5k_warm_repeated` beside the existing mixed ordered/named layout fixture. First measured filtered run: normal mixed layout reached 42.08M operations/s, cold once reached 42.08M operations/s, and warmed repeated reached 38.28M operations/s. This extends the first-use versus repeated-use guardrail to the mixed access pattern before retrying any stateful `FormView` or storage-owned form cache. |
 
-Current pending Plan 11 queue:
+Future Plan 11 queue:
+
+These are not active marching orders. Optimization is paused at the current
+performance level, but this queue records where future work should resume.
 
 1. Keep one public consumption API.
    Users should parse once, keep the `ParseResult` alive, then use `Node` for
    raw traversal and `FormView` for form lookup. Do not add a public
-   scan-once, cursor, batch, or compiled-key API just to win a benchmark until
-   internal state behind `FormView` has been exhausted.
+   scan-once, cursor, batch, or compiled-key API just to win a benchmark.
 
-2. Make `FormView` fast without making callers think about it.
-   `FormView` may hold tiny mutable state or a cache handle, and
-   `ParseStorage` may hold form-state tables, hot-key tables, and lazy indexes.
-   The normal call site should still be `form.get_int("id")`,
-   `form.get_float("x")`, and `form.get_string_view("path")`.
-   `FormView` should not stay stateless by principle; it should only stay
-   stateless if measured stateful designs fail.
+2. Treat broad small-form caches as exhausted for now.
+   Inline value caches, storage-owned hot-form value caches, cache handles,
+   resume hints, structural `FormView` caches, and repeated-lookup small-form
+   caches were all measured and rejected. Future lookup work should be more
+   representation-backed or narrowly targeted than another general form cache.
 
-3. Revisit storage-owned hot-form state with stricter triggers.
-   Previous inline and storage-owned small-form caches were rejected because
-   they were too eager or too costly. Retry only designs that build after
-   repeated lookup on the same form, are gated by child count, avoid per-view
-   heap allocation, and report memory in `StorageStats`.
+3. Keep value caches narrow.
+   Lazy float caching paid because it targets a proven expensive conversion.
+   Integer caches and whole-record value caches did not pay. Future numeric
+   caches should start from one proven cost center and report memory in
+   `StorageStats`.
 
-4. Try a `FormView` cache handle instead of repeated storage lookup.
-   If storage-owned form state is useful, let a `FormView` remember the small
-   cache id for its node. The state must not make `FormView` ownership or
-   lifetime surprising, and it must not require a second public type.
-
-5. Add an internal hot-key identity cache.
+4. Add an internal hot-key identity cache only if it is compact.
    Repeated caller keys such as `id`, `path`, `x`, and `y` can be resolved to
-   storage-owned key ids or hashes inside `FormView::get_*`. This should remain
-   hidden unless benchmarks prove public compiled keys are necessary.
+   storage-owned key ids, source offsets, or hashes inside `FormView::get_*`.
+   This should remain hidden unless benchmarks prove public compiled keys are
+   necessary. Prior fixed byte-key classifiers and atom hash side metadata were
+   rejected, so avoid those exact shapes.
 
-6. Retry symbol/head interning with a compact design.
+5. Retry symbol/head interning with a compact design.
    The unordered-map, node-indexed side-vector attempt was too expensive.
    Future attempts should target only form heads or repeated atom keys, avoid
    widening every node, and compare parse cost against lookup wins.
 
-7. Replace sibling links only if the replacement is real.
+6. Replace sibling links only if the replacement is real.
    The side child-span arena was rejected because it layered a second child
    representation on top of sibling links. A future child-span attempt should
    replace sibling traversal during construction or be skipped. Latest
@@ -484,54 +475,45 @@ Current pending Plan 11 queue:
    still trail direct internal sibling traversal and add about 1.94-4.08 MB of
    temporary storage.
 
-8. Consider a parse-time tape or one-pass retained builder.
+7. Consider a parse-time tape or one-pass retained builder.
    A tape/event builder is allowed if it removes finalization cost or enables a
    better retained representation. Reject it if it merely adds another pass or
    another representation.
 
-9. Keep scanner changes small and isolated.
+8. Keep scanner changes small and isolated.
    Remaining parser hot-loop candidates are direct delimiter tests in atom
    scanning, table-driven byte classification, optional SIMD quote/backslash
-   search for long strings, and reserve-policy tuning. Each should be measured
-   separately and reverted if it is only clever.
+   search for long strings, and reserve-policy tuning. Many scanner micro-
+   rewrites were rejected, so each future attempt should be measured separately
+   and reverted if it is only clever.
 
-10. Add private ceiling probes only when they answer a specific question.
+9. Add private ceiling probes only when they answer a specific question.
     The public scan-once probe was slower than normal `FormView`; future probes
     should use internal node indices or storage access to estimate real
     implementation ceilings, not propose another public API.
 
-11. Treat stateless `FormView` as the current implementation, not a principle.
-    The rejected stateful attempts mostly cached looked-up values or resume
-    positions. Still-open state should be smaller and more structural: cache
-    the storage pointer, list node index, and list `NodeData` pointer inside
-    `FormView` so repeated `get_*`, `find()`, and `find_arg()` calls do not
-    repeat `Node::data()` validation and wrapper unpacking. Keep the public API
-    exactly the same.
-
-12. Avoid public fast-path ceremony.
+10. Avoid public fast-path ceremony.
     Do not add public compiled-key, cursor, batch, or scan-once APIs while
     these internal options remain untested. If a benchmark-only probe wins,
     translate the idea into normal `FormView` behavior through hidden state,
     storage-owned metadata, or representation changes.
 
-13. Keep value caches narrower than form caches.
-    Lazy float caching paid because it targets a proven expensive conversion.
-    Integer caches, fixed small-form value caches, and form-state tables have
-    not paid yet. Future caches should start from one proven cost center, report
-    memory in `StorageStats`, and avoid caching whole records by default.
-
-14. Prefer source-offset metadata over copied text.
+11. Prefer source-offset metadata over copied text.
     Recent wide-index wins came from retaining source offsets/sizes instead of
     `string_view` objects or node ids. Reuse that pattern for any head metadata,
     symbol table, or key cache before considering wider nodes or owned strings.
 
-15. Separate lookup ceilings from production API.
+12. Separate lookup ceilings from production API.
     Internal ordered and storage-walk probes show the ceiling, but they are not
     a user model. Keep adding probes only when they identify whether the gap is
     repeated scans, key matching, public wrapper cost, child traversal, numeric
     conversion, or retained layout.
 
-Work order:
+Future work order:
+
+This is a direction list for later, not an active sprint. Items whose simple
+forms were already rejected should not be retried without a materially different
+representation or new workload evidence.
 
 1. Contiguous child-span arena.
    Replace sibling-chain traversal with a child-index arena. Each list node
@@ -584,13 +566,12 @@ Work order:
    The policy should stay simple: direct below a threshold, indexed above it,
    or no index if symbol-ID scans are already fast.
 
-9. Stateful `FormView` internals without a second public API.
-   Revisit state after the rejected per-view heap-vector cache and resume-hint
-   attempts. The target is still one user-facing API: `form.get_int("id")`,
-   `form.get_float("x")`, and similar calls. Try tiny inline state for one
-   active form, a storage-owned form-state table keyed by node index, and fixed
-   small-form indexes. Reject designs that allocate per view, require users to
-   call a separate batch/cursor API, or make `FormView` lifetime surprising.
+9. `FormView` internals without a second public API.
+   The target remains one user-facing API: `form.get_int("id")`,
+   `form.get_float("x")`, and similar calls. Broad stateful `FormView` and
+   storage-owned small-form caches have already been rejected. Future state
+   should come from representation changes, compact key metadata, or one proven
+   narrow cost center rather than another whole-form value cache.
 
 10. Scan-once small-form benchmark probe.
     Add a benchmark-only path that walks each asset form once and extracts
@@ -599,18 +580,15 @@ Work order:
     optimize normal `FormView::get_*` calls using internal state.
 
 11. Storage-owned hot-form state.
-    If repeated calls on one form are the lookup bottleneck, cache only the
-    resolved head/value information needed by that form in `ParseStorage`.
-    Candidate shapes are a small direct-mapped table keyed by node index, a
-    compact side table populated after the second lookup on a form, or a
-    threshold-gated sorted mini-index. Keep allocation lazy and visible in
-    benchmark memory stats.
+    The tried versions were too expensive. Revisit only if a new retained
+    representation makes the cache effectively free, or if a real workload
+    proves repeated small-form scans dominate more than the generated fixtures
+    showed. Any hidden state must remain visible in benchmark memory stats.
 
 12. Stateful `FormView` cache handle.
-    Let `FormView` cheaply remember that its form has a storage-owned state
-    entry. This is still one public API because callers only construct
-    `FormView` and call `get_*`. Measure whether avoiding repeated lookup-table
-    probes helps the common multi-field asset query.
+    A cache-handle attempt was rejected. Do not retry the same shape. A future
+    handle only makes sense if it points at metadata produced by a broader
+    representation change.
 
 13. Adaptive small-form policy.
     Direct scans are good for one-off lookups, while mini-indexes may help
@@ -619,9 +597,9 @@ Work order:
     get worse enough to outweigh the common asset case.
 
 14. Fixed small-form state with field count gating.
-    Re-test the small-form cache with a stricter trigger: only forms whose child
-    count matches asset-like records and only after repeated lookups. Avoid the
-    rejected eager/every-form cache shape.
+    Fixed small-form caches were rejected in several shapes. Treat this as
+    exhausted unless real data shows a stable schema-shaped workload that
+    justifies a deliberately narrow internal fast path.
 
 15. Hot key identity cache.
     Track a tiny storage-owned mapping for repeated caller keys such as `id`,
@@ -714,11 +692,10 @@ Work order:
     before keeping any stateful design.
 
 32. `FormView` structural state.
-    Try changing `FormView` from a single `Node` wrapper into a tiny resolved
-    view containing the storage pointer, form node index, and form node data
-    pointer. This should keep construction cheap and leave all public calls
-    unchanged. Measure one-off lookup, repeated lookup, mixed layout access,
-    and ordered traversal before keeping it.
+    Tried and rejected. Retaining storage pointer, form node index, and
+    `NodeData` pointer in `FormView` helped some multi-field rows but regressed
+    indexed single-lookup rows. Keep the single-`Node` representation unless a
+    larger representation change alters that tradeoff.
 
 33. Storage-owned hot-key table without public compiled keys.
     Try a small document-local table for repeated caller keys. Start with
@@ -745,10 +722,9 @@ Work order:
     `NodeData` after `next_sibling` is gone.
 
 37. Node wrapper overhead audit.
-    Public ordered traversal is much slower than internal node-index traversal.
-    Before a large representation rewrite, measure small targeted reductions in
-    wrapper overhead that do not duplicate unsafe indexing logic throughout the
-    code.
+    Public ordered traversal is much slower than internal node-index traversal,
+    but small wrapper cleanups tried so far were rejected. Future work should
+    focus on representation or traversal shape, not isolated helper rewrites.
 
 38. Mixed record/code guardrail.
     Every kept lookup optimization must be checked against asset records,
@@ -757,6 +733,11 @@ Work order:
     tuple/code forms slower or awkward.
 
 Extended experiment queue:
+
+This queue is historical and intentionally broad. Prefer the shorter future
+queue above when resuming optimization work. Do not repeat experiments already
+marked rejected in the attempt table unless the implementation shape or
+workload evidence has materially changed.
 
 1. Flat index-entry arena.
    Replace `std::vector<KeyIndexEntry>` inside each lazy child index with one
@@ -782,16 +763,16 @@ Extended experiment queue:
    repeated-call overhead proves they are necessary.
 
 5. Stateful `FormView` as the normal API.
-   Reintroduce `FormView` state only if it avoids the rejected Plan 10 shape.
-   Candidate designs: fixed inline slots for a few cached key/value pairs,
-   last-scan position for repeated calls, or a pointer/id into storage-owned
-   cache data. This is not a second API; the public call site remains
+   Broad `FormView` state has been tried and rejected in several shapes:
+   inline value slots, resume hints, structural cached pointers, and
+   storage-owned cache handles. Revisit only as part of a larger representation
+   change or a narrower proven cost center. The public call site should remain
    `form.get_int("id")`.
 
 6. Storage-owned small-form cache.
-   Keep small forms direct by default, but after repeated lookup on the same
-   form, build a compact cache in `ParseStorage` keyed by form node. Avoid eager
-   indexes for every form. Measure retained bytes and common one-off lookup.
+   Repeated-lookup and hot-form cache attempts were rejected on current data.
+   Keep small forms direct by default. Revisit only with a materially different
+   cache shape or real workload evidence.
 
 7. Scan-once benchmark-only probe.
    Add a local benchmark helper that extracts multiple requested fields in one

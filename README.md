@@ -108,6 +108,27 @@ The build script also runs the test executable through CTest.
 Benchmark builds fetch yyjson by default for local JSON comparison. Disable that
 with `-DGSEXP_BENCHMARK_YYJSON=OFF` when configuring manually.
 
+Latest recorded comparison on the project test laptop:
+
+| Equivalent case | gsexp | yyjson | yyjson/gsexp |
+| --- | ---: | ---: | ---: |
+| assets_10k parse | 254.56 MiB/s | 675.40 MiB/s | 2.65x |
+| assets_50k parse | 216.99 MiB/s | 645.01 MiB/s | 2.97x |
+| asset_database_5k parse | 305.07 MiB/s | 798.06 MiB/s | 2.62x |
+| asset_database_20k parse | 311.49 MiB/s | 767.05 MiB/s | 2.46x |
+| small_files_1k parse | 215.53 MiB/s | 577.29 MiB/s | 2.68x |
+| strings_plain_5k parse | 1073.81 MiB/s | 1318.38 MiB/s | 1.23x |
+| strings_escaped_5k parse | 714.02 MiB/s | 1168.21 MiB/s | 1.64x |
+| code_forms_2k parse | 270.15 MiB/s | 640.65 MiB/s | 2.37x |
+| wide_10k parse | 368.09 MiB/s | 831.31 MiB/s | 2.26x |
+| assets_10k lookup | 24.41M queries/s | 53.03M queries/s | 2.17x |
+| asset_database_5k lookup | 23.55M queries/s | 55.05M queries/s | 2.34x |
+| asset_database_20k lookup | 21.91M queries/s | 50.18M queries/s | 2.29x |
+| many_keys_last lookup | 7.58M queries/s | 11.61M queries/s | 1.53x |
+
+These are equivalent generated data shapes, not byte-identical files. The table
+is a local development comparison, not a portable claim about every machine.
+
 Benchmark results and optimization notes are kept in
 [docs/performance.md](docs/performance.md).
 

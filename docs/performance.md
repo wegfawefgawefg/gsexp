@@ -238,7 +238,12 @@ Public API direction:
 2. Do not add a second public batch/cursor API just to win benchmarks. yyjson's
    compared path uses normal repeated object lookup; `gsexp` should make normal
    `FormView::get_*` calls competitive.
-3. Benchmark-only scan-once or cursor experiments are allowed only to identify
+3. `FormView` is allowed to hold internal state if that makes the normal API
+   faster. That state should be cheap to construct, non-owning where possible,
+   and backed by `ParseStorage` when it needs reusable cached data.
+4. Storage-owned caches are preferred over user-visible helper objects. A normal
+   caller should not need to choose between a "simple" API and a "fast" API.
+5. Benchmark-only scan-once or cursor experiments are allowed only to identify
    the ceiling and bottleneck. If they win, the production fix should be
    internal state, storage-owned caches, or representation changes behind the
    existing `FormView` API unless there is strong evidence users need a new
@@ -301,6 +306,7 @@ Attempt results so far:
 | Legacy node reserve without sampling | Rejected. Removing the 16 KiB node-count sample and always reserving `source.size() / 4` did not produce a broad parse win, and it over-reserved badly on string-heavy fixtures. `strings_plain_5k` retained node capacity jumped from about 58k to 294,170 for 55,002 nodes, raising approximate retained bytes from about 2.34 MB to 7.06 MB. `strings_escaped_5k` similarly rose to 322,920 node capacity and about 8.72 MB retained. |
 | 4 KiB node-reserve sample | Kept. Reducing the reserve estimator sample from 16 KiB to 4 KiB cuts pre-scan work while preserving the memory savings from sampled reserve. In the same-session A/B run, 4 KiB improved `assets_10k` from 243.58 to 260.59 MiB/s, `asset_database_5k` from 310.03 to 322.67 MiB/s, `strings_plain_5k` from 1039.37 to 1125.90 MiB/s, and `code_forms_2k` from 269.73 to 272.05 MiB/s. String-heavy node capacity rose modestly (`strings_plain_5k` from 58,180 to 58,620; `strings_escaped_5k` from 57,673 to 60,809), which is acceptable compared with the rejected legacy reserve. |
 | 1 KiB and 2 KiB node-reserve samples | Rejected. Smaller reserve samples were too mixed after the 4 KiB keep. The 1 KiB run improved some parse cases (`assets_10k` 264.91 MiB/s, `strings_plain_5k` 1157.64 MiB/s, `code_forms_2k` 280.73 MiB/s), but it regressed `asset_database_5k` versus the same-session 4 KiB baseline and increased string-heavy node capacity (`strings_plain_5k` 66,824; `strings_escaped_5k` 65,634). The 2 KiB run was worse on the main parse cases (`assets_10k` 237.82 MiB/s, `asset_database_5k` 301.37 MiB/s, `strings_plain_5k` 920.84 MiB/s), so 4 KiB remains the best documented balance. |
+| 50% decoded string reserve | Rejected. Reducing the first escaped-string decoded-text reserve from 75% of source to 50% looked like a retained-memory win, but vector growth made it slower and larger on the escaped-string fixture. The measured run had `strings_escaped_5k` at 662.00 MiB/s with retained approximate bytes at 3,799,541, versus the previous 4 KiB reserve-sample run at 754.38 MiB/s and about 3,476,622 retained bytes. The 75% reserve was restored. |
 
 Work order:
 
@@ -352,11 +358,12 @@ Work order:
    or no index if symbol-ID scans are already fast.
 
 9. Stateful `FormView` internals without a second public API.
-   Revisit state after the rejected per-view heap-vector cache. Try designs
-   that keep `FormView::get_*` as the user-facing API while avoiding repeated
-   scans on the same form: tiny inline state, storage-owned lazy per-form
-   caches, fixed-size small-form indexes, or scan-progress helpers. Reject
-   designs that allocate per view or require users to call a new batch API.
+   Revisit state after the rejected per-view heap-vector cache and resume-hint
+   attempts. The target is still one user-facing API: `form.get_int("id")`,
+   `form.get_float("x")`, and similar calls. Try tiny inline state for one
+   active form, storage-owned per-form caches keyed by node index, and fixed
+   small-form indexes. Reject designs that allocate per view, require users to
+   call a separate batch/cursor API, or make `FormView` lifetime surprising.
 
 10. Scan-once small-form benchmark probe.
     Add a benchmark-only path that walks each asset form once and extracts
@@ -364,37 +371,45 @@ Work order:
     bottleneck, not a proposed public API. If it closes most of the yyjson gap,
     optimize normal `FormView::get_*` calls using internal state.
 
-11. Numeric parse specialization.
+11. Storage-owned hot-form state.
+    If repeated calls on one form are the lookup bottleneck, cache only the
+    resolved head/value information needed by that form in `ParseStorage`.
+    Candidate shapes are a small direct-mapped table keyed by node index, a
+    compact side table populated after the second lookup on a form, or a
+    threshold-gated sorted mini-index. Keep allocation lazy and visible in
+    benchmark memory stats.
+
+12. Numeric parse specialization.
     Try small custom parsers for common integer and simple decimal float shapes.
     Keep exact rejection behavior covered by tests. Reject if `from_chars` is
     still faster or if correctness gets harder to reason about.
 
-12. Lazy numeric metadata.
+13. Lazy numeric metadata.
     Preserve atom-first semantics, but try storage-owned numeric classification
     or conversion caches so repeated `get_int()` and `get_float()` do not
     re-validate and re-convert the same atom text. Keep this behind the normal
     `FormView::get_*` API.
 
-13. Scanner success-path rewrite.
+14. Scanner success-path rewrite.
     Tighten whitespace/comment/atom/string scanning after the representation
     change. Separate syntax scanning from tree construction enough that hot
     loops stay simple. Preserve diagnostics.
 
-14. SIMD integration.
+15. SIMD integration.
     Integrate the existing SSE2 delimiter/string scan proof only after scalar
     representation changes settle. SIMD remains optional with scalar fallback.
     Benchmark parse cases and compile portability.
 
-15. Allocation discipline.
+16. Allocation discipline.
     Reduce growth churn across nodes, child indices, decoded text, symbol table,
     and lazy indexes. Prefer flat arenas over per-list heap allocations.
 
-16. Real workload fixtures.
+17. Real workload fixtures.
     Add larger and more realistic generated asset database cases, and later
     real project fixtures when available. Keep synthetic yyjson comparisons,
     but do not optimize solely for synthetic records.
 
-17. API audit after internals settle.
+18. API audit after internals settle.
     Keep `Node` and `FormView` public behavior stable. Only add public API if
     benchmarks prove users need explicit symbol handles or caller-side compiled
     keys.

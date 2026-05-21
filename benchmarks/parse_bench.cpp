@@ -386,6 +386,11 @@ int main() {
     run_nested_find_arg_case("query_nested_find_arg_5k", nested_arg_data, 5000, 200);
     run_internal_nested_find_arg_case("query_internal_nested_find_arg_5k", nested_arg_data, 5000, 200);
     run_mixed_layout_access_case("query_mixed_layout_access_5k", nested_arg_data, 5000, 200);
+    run_mixed_layout_transition_case("query_mixed_layout_access_5k_cold_once",
+                                     "query_mixed_layout_access_5k_warm_repeated",
+                                     nested_arg_data,
+                                     5000,
+                                     200);
     traversal_bench::run_ordered_code_case("iterate_code_forms_2k", code_forms_2k, 200);
     traversal_bench::run_internal_ordered_code_case("iterate_internal_code_forms_2k", code_forms_2k, 200);
     traversal_bench::run_child_span_ordered_code_case("iterate_child_span_code_forms_2k",

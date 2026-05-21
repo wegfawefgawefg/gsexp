@@ -223,11 +223,11 @@ walk, faster to query, and closer to contiguous memory.
 
 Current gap during Plan 11:
 
-1. `assets_10k` parse is about 2.63x behind yyjson on the latest Plan 11 run.
-2. `asset_database_5k` parse is about 2.69x behind yyjson.
-3. `code_forms_2k` parse is about 2.75x behind yyjson.
-4. `assets_10k` lookup is about 7.66x behind yyjson.
-5. `many_keys_last` lookup is about 2.46x behind yyjson.
+1. `assets_10k` parse is about 2.72x behind yyjson on the latest Plan 11 run.
+2. `asset_database_5k` parse is about 2.74x behind yyjson.
+3. `code_forms_2k` parse is about 2.53x behind yyjson.
+4. `assets_10k` lookup is about 6.85x behind yyjson.
+5. `many_keys_last` lookup is about 2.07x behind yyjson.
 6. The public API is now clean enough that internal representation churn should
    not force another user-facing rewrite.
 
@@ -271,6 +271,7 @@ Attempt results so far:
 | Raw offset/size wide-index comparison | Rejected. Removing `string_view` construction inside indexed comparisons made `query_many_keys_last` faster in the measured run at 7.94M queries/s, but it regressed two adjacent indexed cases: `query_find_many_keys_last` fell to 6.18M queries/s and `query_child_at_many_keys_last` fell to 5.75M queries/s. The previous comparison helper was restored. |
 | ParseResult root reserve | Rejected. Reserving one root did not improve the expected one-root parse cases in the measured run: `small_files_1k` fell to 175.82 MiB/s, `assets_10k` fell to 218.48 MiB/s, and `strings_plain_5k` fell to 909.76 MiB/s. Some unrelated query cases moved with normal benchmark noise, so the reserve was removed. |
 | Source-atom direct lookup helper | Kept. Direct small-form lookup now uses a source-backed atom comparison helper instead of the generic text-storage comparison path. The second measured run showed the target small-form lookup cases in a good range: `query_assets_10k` 17.73M queries/s, `query_first_10k` 16.88M queries/s, and `query_string_view_10k` 16.68M queries/s. Wide lookup also stayed healthy in that run: `query_many_keys_last` 6.74M queries/s, `query_find_many_keys_last` 6.84M queries/s, and `query_child_at_many_keys_last` 6.85M queries/s. |
+| Parser-local list tail storage | Kept. The parser no longer keeps a separate `last_children` vector for every node. List nodes have no public text, so parsing uses their text-offset field as the current child tail while sibling links are built. Two measured runs showed better parse throughput; the second run had `assets_10k` 254.70 MiB/s, `asset_database_5k` 300.09 MiB/s, `small_files_1k` 214.56 MiB/s, and `code_forms_2k` 258.48 MiB/s. Lookup stayed in range, with `query_assets_10k` 17.72M queries/s and `query_many_keys_last` 7.36M queries/s. |
 
 Work order:
 

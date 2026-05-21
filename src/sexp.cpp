@@ -203,7 +203,6 @@ class Parser {
         storage->source = std::move(source);
         std::size_t node_reserve = estimate_node_reserve(storage->source);
         storage->nodes.reserve(node_reserve);
-        last_children.reserve(node_reserve);
         text = storage->source;
     }
 
@@ -228,9 +227,16 @@ class Parser {
 
   private:
     std::shared_ptr<ParseStorage> storage;
-    std::vector<std::uint32_t> last_children;
     std::string_view text;
     std::size_t index = 0;
+
+    static std::uint32_t list_tail_child(const NodeData& list) {
+        return list.text_offset;
+    }
+
+    static void set_list_tail_child(NodeData& list, std::uint32_t tail) {
+        list.text_offset = tail;
+    }
 
     std::uint32_t add_node(ValueType type,
                            TextStorage text_storage,
@@ -243,17 +249,19 @@ class Parser {
         node.text_storage = text_storage;
         node.text_offset = static_cast<std::uint32_t>(text_offset);
         node.text_size = static_cast<std::uint32_t>(text_size);
+        // Lists have no public text, so this field stores the parse-time child tail.
+        if (type == ValueType::List)
+            set_list_tail_child(node, invalid_node);
         storage->nodes.push_back(node);
-        last_children.push_back(invalid_node);
 
         if (parent != invalid_node) {
             NodeData& parent_node = storage->nodes[parent];
             if (parent_node.first_child == invalid_node) {
                 parent_node.first_child = node_index;
             } else {
-                storage->nodes[last_children[parent]].next_sibling = node_index;
+                storage->nodes[list_tail_child(parent_node)].next_sibling = node_index;
             }
-            last_children[parent] = node_index;
+            set_list_tail_child(parent_node, node_index);
             increment_child_count(parent);
         }
 

@@ -139,3 +139,84 @@ Candidate attempts:
      for numeric interpretation.
    - Further large gains probably require another deliberate `Value`
      representation redesign rather than more parser-local tricks.
+
+## Optimization Plan 3
+
+Goal: stop optimizing against one synthetic shape. Add benchmark coverage first,
+then use those numbers to decide whether representation changes are worth the
+API cost.
+
+Benchmark work:
+
+1. Add a many-small-files case.
+   Parse hundreds or thousands of small config strings. This catches startup
+   overhead and root allocation behavior that the current large in-memory asset
+   benchmark can hide.
+
+2. Add a huge asset database case.
+   Parse one much larger asset-style file than `assets_10k`. This should model
+   the intended asset database use better and make allocator/locality issues
+   easier to see.
+
+3. Add escaped-string and long-string cases.
+   Measure strings with no escapes, many escapes, and longer paths/text blobs.
+   This gives a safer basis for revisiting string fast paths.
+
+4. Add deep nesting and wide-list cases.
+   Measure recursion overhead, list allocation behavior, and diagnostics
+   behavior on shapes unlike `(key value)` asset records.
+
+5. Add extraction/query benchmarks.
+   Measure repeated `find_child`, `extract_int`, `extract_float`, and
+   `extract_string` calls after parsing. This is separate from parse throughput
+   and should drive helper-level optimizations.
+
+Parser-local attempts:
+
+1. Revisit unescaped string fast path only after string benchmarks exist.
+   Keep it only if it improves large and string-heavy cases without making the
+   slow escaped path harder to audit.
+
+2. Try `std::from_chars` in extraction helpers.
+   This will not improve parse throughput, but may help asset database loading
+   if consumers query many numeric fields after parsing.
+
+3. Try top-level root reservation.
+   Count likely root expressions cheaply before parsing, or reserve a small
+   fixed number if measurements show repeated root vector growth.
+
+Representation attempts:
+
+1. Small-list storage.
+   Replace `std::vector<Value>` for very small lists with inline storage or a
+   low-overhead list wrapper. This targets the common `(key value)` shape but is
+   a public `Value` shape change unless wrapped carefully.
+
+2. Source-owned string views.
+   Let `ParseResult` own a source buffer and store atom/string slices into it
+   where possible. This could remove many string allocations, but changes
+   ownership semantics and needs careful escaping behavior for strings.
+
+3. Atom/key interning.
+   Intern repeated atoms such as `asset`, `id`, `path`, `type`, and `tags`.
+   This can reduce memory and speed comparisons, but should not force callers to
+   understand intern tables for normal use.
+
+4. Flat node arena.
+   Parse into contiguous nodes owned by `ParseResult` instead of recursive
+   `std::vector<Value>` allocations. This is the most plausible path to another
+   large speedup, but it is also the largest public representation decision.
+
+5. Compatibility wrapper over a new core.
+   If flat nodes or arenas are much faster, consider keeping convenience helpers
+   while changing the low-level tree type deliberately. Do not maintain two
+   unrelated parser APIs; the normal path should remain `parse(text)`.
+
+Plan 3 acceptance rule:
+
+1. Benchmark changes can be kept if they compile cleanly and measure useful,
+   distinct workloads.
+2. Parser-local optimizations must improve at least the workload they target and
+   must not materially regress the huge asset case.
+3. Representation changes need a larger bar: clear speed or memory wins, simple
+   ownership rules, and no second confusing parse API.

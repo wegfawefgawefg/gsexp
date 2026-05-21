@@ -1,6 +1,7 @@
 #include "gsexp/sexp.hpp"
 
 #include "bench_data.hpp"
+#include "scan_probe.hpp"
 
 #include <chrono>
 #include <cstring>
@@ -483,6 +484,7 @@ int main() {
     run_query_case("query_missing_10k", assets_10k, 10000, 500, QueryMode::Missing);
     run_query_case("query_string_view_10k", assets_10k, 10000, 500, QueryMode::StringView);
     run_query_case("query_many_keys_last", data::make_many_keys_data(5000, 24), 5000, 200, QueryMode::ManyLast);
+    scan_probe::run_case("scan_probe_asset_database_5k", asset_database_5k, 1000);
 #if GSEXP_HAVE_YYJSON
     run_yyjson_parse_case("yyjson_assets_10k", asset_json_10k, 50);
     run_yyjson_parse_case("yyjson_assets_50k", asset_json_50k, 10);

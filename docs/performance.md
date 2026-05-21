@@ -27,34 +27,34 @@ Latest verified Plan 6 results on this machine:
 
 | Case | Result |
 | --- | ---: |
-| assets_10k | 197.07 MiB/s |
-| assets_50k | 169.41 MiB/s |
-| asset_database_5k | 228.28 MiB/s |
-| small_files_1k | 168.83 MiB/s |
-| strings_plain_5k | 421.41 MiB/s |
-| strings_escaped_5k | 272.65 MiB/s |
-| deep_1k | 174.92 MiB/s |
-| wide_10k | 246.84 MiB/s |
-| query_assets_10k | 14.82M queries/s |
-| query_first_10k | 11.46M queries/s |
-| query_last_10k | 7.58M queries/s |
-| query_missing_10k | 10.07M queries/s |
-| query_string_view_10k | 12.99M queries/s |
-| query_many_keys_last | 3.70M queries/s |
+| assets_10k | 190.74 MiB/s |
+| assets_50k | 167.35 MiB/s |
+| asset_database_5k | 225.87 MiB/s |
+| small_files_1k | 173.54 MiB/s |
+| strings_plain_5k | 446.10 MiB/s |
+| strings_escaped_5k | 274.29 MiB/s |
+| deep_1k | 176.89 MiB/s |
+| wide_10k | 240.74 MiB/s |
+| query_assets_10k | 14.92M queries/s |
+| query_first_10k | 11.45M queries/s |
+| query_last_10k | 7.47M queries/s |
+| query_missing_10k | 9.65M queries/s |
+| query_string_view_10k | 13.25M queries/s |
+| query_many_keys_last | 3.47M queries/s |
 
 Plan 6 yyjson comparison results:
 
 | Equivalent case | gsexp | yyjson | yyjson/gsexp |
 | --- | ---: | ---: | ---: |
-| assets_10k parse | 197.07 MiB/s | 659.71 MiB/s | 3.35x |
-| assets_50k parse | 169.41 MiB/s | 668.99 MiB/s | 3.95x |
-| asset_database_5k parse | 228.28 MiB/s | 752.66 MiB/s | 3.30x |
-| small_files_1k parse | 168.83 MiB/s | 553.86 MiB/s | 3.28x |
-| strings_plain_5k parse | 421.41 MiB/s | 1375.22 MiB/s | 3.26x |
-| strings_escaped_5k parse | 272.65 MiB/s | 1141.30 MiB/s | 4.19x |
-| wide_10k parse | 246.84 MiB/s | 821.01 MiB/s | 3.33x |
-| assets_10k lookup | 14.82M queries/s | 66.00M queries/s | 4.45x |
-| many_keys_last lookup | 3.70M queries/s | 7.90M queries/s | 2.13x |
+| assets_10k parse | 190.74 MiB/s | 659.84 MiB/s | 3.46x |
+| assets_50k parse | 167.35 MiB/s | 632.48 MiB/s | 3.78x |
+| asset_database_5k parse | 225.87 MiB/s | 743.61 MiB/s | 3.29x |
+| small_files_1k parse | 173.54 MiB/s | 553.14 MiB/s | 3.19x |
+| strings_plain_5k parse | 446.10 MiB/s | 1447.86 MiB/s | 3.25x |
+| strings_escaped_5k parse | 274.29 MiB/s | 1294.42 MiB/s | 4.72x |
+| wide_10k parse | 240.74 MiB/s | 836.61 MiB/s | 3.48x |
+| assets_10k lookup | 14.92M queries/s | 63.50M queries/s | 4.26x |
+| many_keys_last lookup | 3.47M queries/s | 7.70M queries/s | 2.22x |
 
 These are equivalent data shapes, not byte-identical files. The JSON fixtures
 are generated beside the S-expression fixtures and measured by each format's
@@ -92,13 +92,16 @@ Important Plan 6 retained changes:
 4. Node reservation now uses a bounded density sample only when it is clearly
    lower than the old `source.size() / 4` reserve. Dense and small inputs keep
    the old reserve.
+5. A benchmark-only delimiter scan probe compares scalar scanning against an
+   SSE2 chunked scan. It is not part of the parser API or parser code path.
 
 Plan 6 optimization attempt results:
 
 | Attempt | Result |
 | --- | --- |
 | Density-aware node reserve, first version | Rejected. It reduced memory on string-heavy files, but changed dense/small/deep reserves too aggressively and hurt `small_files_1k` and `deep_1k`. |
-| Density-aware node reserve, gated version | Kept. `strings_plain_5k` retained storage dropped from about 10.1 MiB to 3.0 MiB and `strings_escaped_5k` dropped from about 12.3 MiB to 4.3 MiB. Parse speed was mostly neutral, with `strings_plain_5k` about 3% slower on the latest run. |
+| Density-aware node reserve, gated version | Kept. `strings_plain_5k` retained storage dropped from about 10.1 MiB to 3.0 MiB and `strings_escaped_5k` dropped from about 12.3 MiB to 4.3 MiB. Dense and small inputs keep the old reserve. |
+| Benchmark-only SSE2 delimiter scan probe | Measured, not integrated. On `asset_database_5k`, scalar delimiter counting reached 863.18 MiB/s and SSE2 reached 1696.90 MiB/s, a 1.97x raw scan speedup. Parser integration still needs separate proof because parsing also maintains structure, diagnostics, and line/column state. |
 
 ## Optimization Plan 6
 

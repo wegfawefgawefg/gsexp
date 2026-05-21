@@ -158,6 +158,90 @@ Plan 8 optimization attempt results:
 | Sorted-vector child index cache | Kept. `query_many_keys_last` improved to 4.64M queries/s on the latest run and child-index storage is included in `approximate_bytes`. |
 | Owned file-load benchmark | Kept. `asset_database_5k_file_owned` measured 162.86 MiB/s on the latest run, which includes cached file read plus `parse_owned`. |
 
+## Optimization Plan 9
+
+Goal: improve query/text access and escaped-string handling after the Plan 8
+storage layout changes. Plan 8 made nodes smaller, but text access now rebuilds
+views from offset/length and the remaining yyjson gap is mostly lookup and
+escaped data.
+
+Baseline gaps after Plan 8:
+
+1. Plain long strings are close enough for now: 917.71 MiB/s vs yyjson
+   1339.24 MiB/s.
+2. Escaped strings are still slow: 349.42 MiB/s vs yyjson 1123.13 MiB/s.
+3. Common asset lookup is still far behind yyjson on the latest run.
+4. Wide-key lookup improved, but is still slower than yyjson.
+5. `asset_database_5k_file_owned` is much slower than in-memory parse, so real
+   file loading needs clearer measurement before optimizing it.
+
+Work order:
+
+1. Text access microbenchmarks.
+   Add benchmarks for `Node::text()` only, value-child text access through
+   extraction helpers, and repeated symbol comparisons. Determine whether
+   offset/length reconstruction is a meaningful query cost.
+
+2. Numeric helper scan removal.
+   `extract_int` and `extract_float` still pre-scan with `looks_like_*` before
+   `from_chars`. Try removing the pre-scan and relying on `from_chars` plus the
+   end pointer. Keep only if numeric query benchmarks improve without accepting
+   invalid forms.
+
+3. Fast key comparison.
+   For source-backed atom keys, compare key length before building a
+   `string_view` and avoid reconstructing views inside tight child scans where
+   possible. Keep the public `Node::text()` API unchanged.
+
+4. Escaped string chunk copying.
+   After the first escape, the parser currently decodes character by character.
+   Copy contiguous non-escape spans into the decoded arena and handle only
+   escape points individually. This targets `strings_escaped_5k`.
+
+5. Decoded arena rollback guard.
+   Make direct decode rollback explicit and cheap for unterminated strings. Add
+   tests that ensure failed escaped strings do not leave user-visible decoded
+   nodes.
+
+6. Query cache locality follow-up.
+   Use the query microbenchmarks to decide whether the sorted child-index cache
+   should become a flatter arena-backed structure. Reject any version that only
+   helps one query while hurting common lookup or increasing parse cost.
+
+7. Owned file-load benchmark split.
+   Split `asset_database_5k_file_owned` into file read time and parse-owned time
+   so we know whether the current 162.86 MiB/s is parser cost or filesystem
+   overhead. Optimize only the parser side.
+
+8. Ownership/API audit.
+   Revisit `shared_ptr<ParseStorage>` only after query/text microbenchmarks
+   prove ownership overhead matters. Default remains no public API churn.
+
+Acceptance rules:
+
+1. Each attempt gets before/after benchmark output and a keep/reject note.
+2. `gsexp ./scripts/build.sh` passes.
+3. `gsexp ./scripts/bench.sh` passes with yyjson enabled.
+4. Benchmark build with `GSEXP_BENCHMARK_YYJSON=OFF` still works.
+5. `glayout ./scripts/build.sh` passes after any public API, build, or vendoring
+   change.
+6. Public API stays stable unless README and glayout are updated in the same
+   change.
+7. Extraction helpers must keep rejecting invalid numeric inputs already covered
+   by tests, and new numeric edge cases should be added before changing numeric
+   parsing.
+8. Keep files within the project size guideline by splitting cohesive benchmark
+   or parser helpers as needed.
+
+Rejected-by-default unless evidence changes:
+
+1. Reintroducing retained `std::string_view` in every node.
+   Plan 8 showed the smaller node layout is valuable.
+2. Eagerly hashing or indexing every key during parse.
+   Keep indexes lazy unless query benchmarks prove otherwise.
+3. Adding a second public lookup API before optimizing existing helpers.
+4. Optimizing file I/O before separating it from parser-owned parse cost.
+
 ## Optimization Plan 8
 
 Goal: reduce the remaining gap against yyjson by improving storage layout,

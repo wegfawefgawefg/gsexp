@@ -230,6 +230,16 @@ Current gap after Plan 10:
 5. The public API is now clean enough that internal representation churn should
    not force another user-facing rewrite.
 
+Attempt results so far:
+
+| Attempt | Result |
+| --- | --- |
+| Contiguous child-span arena with parser-only sibling finalization | Rejected. `NodeData` dropped from 24 to 20 bytes, but `assets_10k` parse fell from the Plan 10 result of 223.80 MiB/s to 125.01 MiB/s, and common asset lookup fell from 16.31M queries/s to 13.14M queries/s. The finalization pass and extra child-index indirection outweighed the smaller node. |
+| Atom text hash stored in every node | Rejected. `NodeData` grew from 24 to 28 bytes. `assets_10k` parse fell to 159.94 MiB/s and common asset lookup fell to 14.68M queries/s. Head lookup needs a side-table or head-only strategy, not a wider node for every atom. |
+| Length-gated `FormView` direct lookup | Rejected. It did not improve the main lookup benchmarks and hurt wide-key lookup in the measured run. |
+| Custom checked integer parser | Rejected. It preserved tests but did not beat `looks_like_integer` plus `from_chars` on the integer lookup benchmarks. |
+| Length-gated `Node::is_atom` | Rejected. It was too noisy and did not produce a stable improvement in the isolated final run. |
+
 Work order:
 
 1. Contiguous child-span arena.

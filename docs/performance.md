@@ -51,6 +51,7 @@ Latest verified Plan 11 results on this machine:
 | query_text_only_10k | 46.34M queries/s |
 | query_symbol_compare_10k | 44.29M queries/s |
 | query_asset_database_5k | 22.57M queries/s |
+| query_asset_database_20k | 21.17M queries/s |
 | query_many_keys_last | 7.38M queries/s |
 | query_find_many_keys_last | 8.12M queries/s |
 | query_child_at_many_keys_last | 7.54M queries/s |
@@ -73,6 +74,7 @@ Latest yyjson comparison results:
 | wide_10k parse | 384.71 MiB/s | 843.56 MiB/s | 2.19x |
 | assets_10k lookup | 24.34M queries/s | 126.06M queries/s | 5.18x |
 | asset_database_5k lookup | 22.57M queries/s | 83.31M queries/s | 3.69x |
+| asset_database_20k lookup | 21.17M queries/s | 77.52M queries/s | 3.66x |
 | many_keys_last lookup | 7.38M queries/s | 15.15M queries/s | 2.05x |
 
 These are equivalent data shapes, not byte-identical files. The JSON fixtures
@@ -383,6 +385,7 @@ Attempt results so far:
 | Scalar prefix before string SIMD scan | Rejected. `find_string_special()` tried checking the first eight bytes scalarly before entering the SSE2 quote/backslash/newline scan, separate from the already rejected atom scalar-prefix attempt. The measured result was worse on the target string cases and some general parse cases: `strings_plain_5k` fell to 977.69 MiB/s, `strings_escaped_5k` fell to 557.29 MiB/s, `asset_database_5k` fell to 266.58 MiB/s, and `code_forms_2k` measured 252.66 MiB/s. The direct SSE2 loop was restored. |
 | `parse_value()` switch dispatch | Rejected. Replacing the ordered `if` chain in `parse_value()` with a `switch` on the current byte did not improve the parser hot path. The measured run regressed important parse fixtures: `strings_plain_5k` fell to 899.04 MiB/s, `code_forms_2k` fell to 227.63 MiB/s, `wide_10k` fell to 326.95 MiB/s, `asset_database_20k` fell to 278.34 MiB/s, and `assets_10k` was only 239.49 MiB/s. The original branch order was restored. |
 | Source-only `Node::is_atom()` helper | Rejected. `Node::is_atom()` tried using a source-backed atom comparison helper with bounds checks, matching the fact that parsed atoms are source-backed and avoiding the generic decoded-text branch. The measured query result was mixed and not worth specializing this public traversal path: `query_symbol_compare_10k` improved to 45.17M q/s and `query_asset_database_5k` reached 23.67M q/s, but `query_string_view_10k` fell to 13.49M q/s, `query_nested_find_arg_5k` fell to 21.31M q/s, and traversal fell to 42.29M visits/s. The generic checked text helper was restored. |
+| Larger mixed asset database query fixture | Kept. The benchmark suite now runs `query_asset_database_20k` and `yyjson_query_asset_database_20k`, using the existing 20k generated mixed asset database and the same total 5M query count as the 5k query case. First measured run: `gsexp` reached 21.17M q/s with about 20.07 MB retained after float cache allocation, while yyjson reached 77.52M q/s on the equivalent JSON fixture. This is measurement support for Plan 11 lookup work, not a parser behavior change. |
 
 Current pending Plan 11 queue:
 

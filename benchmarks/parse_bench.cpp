@@ -328,6 +328,7 @@ int main() {
     run_query_case("query_text_only_10k", assets_10k, 10000, 200, QueryMode::TextOnly);
     run_query_case("query_symbol_compare_10k", assets_10k, 10000, 200, QueryMode::SymbolCompare);
     run_asset_database_query_case("query_asset_database_5k", asset_database_5k, 5000, 200);
+    run_asset_database_query_case("query_asset_database_20k", asset_database_20k, 20000, 50);
     run_child_iteration_case("iterate_assets_10k", assets_10k, 10000, 200);
     std::string many_keys_data = data::make_many_keys_data(5000, 24);
     run_query_case("query_many_keys_last", many_keys_data, 5000, 200, QueryMode::ManyLast);
@@ -352,6 +353,10 @@ int main() {
                                                 asset_database_json_5k,
                                                 5000,
                                                 200);
+    yyjson_bench::run_asset_database_query_case("yyjson_query_asset_database_20k",
+                                                asset_database_json_20k,
+                                                20000,
+                                                50);
     yyjson_bench::run_query_case("yyjson_query_many_keys_last", many_keys_json, "records", 5000, 200, true);
 #endif
     return 0;

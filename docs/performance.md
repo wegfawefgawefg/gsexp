@@ -27,43 +27,48 @@ Latest verified Plan 11 results on this machine:
 
 | Case | Result |
 | --- | ---: |
-| assets_10k | 239.93 MiB/s |
-| assets_50k | 209.92 MiB/s |
-| asset_database_5k | 298.39 MiB/s |
-| asset_database_5k_owned | 301.88 MiB/s |
-| asset_database_5k_file_read | 410.32 MiB/s |
-| asset_database_5k_file_owned | 167.10 MiB/s |
-| small_files_1k | 195.64 MiB/s |
-| strings_plain_5k | 1075.62 MiB/s |
-| strings_escaped_5k | 739.07 MiB/s |
-| deep_1k | 182.62 MiB/s |
-| code_forms_2k | 234.70 MiB/s |
-| wide_10k | 348.36 MiB/s |
-| query_assets_10k | 17.23M queries/s |
-| query_first_10k | 16.86M queries/s |
-| query_last_10k | 8.52M queries/s |
-| query_missing_10k | 12.53M queries/s |
-| query_string_view_10k | 18.90M queries/s |
-| query_text_only_10k | 43.18M queries/s |
-| query_symbol_compare_10k | 42.55M queries/s |
-| query_many_keys_last | 6.20M queries/s |
-| query_find_many_keys_last | 7.93M queries/s |
-| query_child_at_many_keys_last | 6.57M queries/s |
+| assets_10k | 264.33 MiB/s |
+| assets_50k | 227.76 MiB/s |
+| asset_database_5k | 310.02 MiB/s |
+| asset_database_5k_owned | 308.81 MiB/s |
+| asset_database_20k | 324.27 MiB/s |
+| asset_database_20k_owned | 307.35 MiB/s |
+| asset_database_5k_file_read | 396.37 MiB/s |
+| asset_database_5k_file_owned | 178.14 MiB/s |
+| small_files_1k | 205.41 MiB/s |
+| strings_plain_5k | 1094.19 MiB/s |
+| strings_escaped_5k | 728.18 MiB/s |
+| deep_1k | 226.88 MiB/s |
+| code_forms_2k | 263.15 MiB/s |
+| wide_10k | 337.86 MiB/s |
+| query_assets_10k | 23.47M queries/s |
+| query_first_10k | 15.05M queries/s |
+| query_last_10k | 11.29M queries/s |
+| query_missing_10k | 14.40M queries/s |
+| query_string_view_10k | 16.39M queries/s |
+| query_text_only_10k | 45.55M queries/s |
+| query_symbol_compare_10k | 45.12M queries/s |
+| query_asset_database_5k | 23.88M queries/s |
+| query_many_keys_last | 7.33M queries/s |
+| query_find_many_keys_last | 8.14M queries/s |
+| query_child_at_many_keys_last | 7.42M queries/s |
 
 Latest yyjson comparison results:
 
 | Equivalent case | gsexp | yyjson | yyjson/gsexp |
 | --- | ---: | ---: | ---: |
-| assets_10k parse | 239.93 MiB/s | 630.66 MiB/s | 2.63x |
-| assets_50k parse | 209.92 MiB/s | 614.52 MiB/s | 2.93x |
-| asset_database_5k parse | 298.39 MiB/s | 802.97 MiB/s | 2.69x |
-| small_files_1k parse | 195.64 MiB/s | 572.29 MiB/s | 2.93x |
-| strings_plain_5k parse | 1075.62 MiB/s | 1319.84 MiB/s | 1.23x |
-| strings_escaped_5k parse | 739.07 MiB/s | 1217.24 MiB/s | 1.65x |
-| code_forms_2k parse | 234.70 MiB/s | 646.47 MiB/s | 2.75x |
-| wide_10k parse | 348.36 MiB/s | 843.96 MiB/s | 2.42x |
-| assets_10k lookup | 17.23M queries/s | 131.91M queries/s | 7.66x |
-| many_keys_last lookup | 6.20M queries/s | 15.24M queries/s | 2.46x |
+| assets_10k parse | 264.33 MiB/s | 716.19 MiB/s | 2.71x |
+| assets_50k parse | 227.76 MiB/s | 670.12 MiB/s | 2.94x |
+| asset_database_5k parse | 310.02 MiB/s | 829.76 MiB/s | 2.68x |
+| asset_database_20k parse | 324.27 MiB/s | 794.43 MiB/s | 2.45x |
+| small_files_1k parse | 205.41 MiB/s | 585.07 MiB/s | 2.85x |
+| strings_plain_5k parse | 1094.19 MiB/s | 1445.37 MiB/s | 1.32x |
+| strings_escaped_5k parse | 728.18 MiB/s | 1267.39 MiB/s | 1.74x |
+| code_forms_2k parse | 263.15 MiB/s | 666.05 MiB/s | 2.53x |
+| wide_10k parse | 337.86 MiB/s | 837.42 MiB/s | 2.48x |
+| assets_10k lookup | 23.47M queries/s | 107.47M queries/s | 4.58x |
+| asset_database_5k lookup | 23.88M queries/s | 80.83M queries/s | 3.39x |
+| many_keys_last lookup | 7.33M queries/s | 14.40M queries/s | 1.96x |
 
 These are equivalent data shapes, not byte-identical files. The JSON fixtures
 are generated beside the S-expression fixtures and measured by each format's
@@ -217,18 +222,20 @@ Plan 10 optimization attempt results:
 
 Goal: stop treating syntax simplicity as enough. `gsexp` has simpler syntax
 than JSON, but its retained tree is currently heavier than yyjson's DOM layout.
-Plan 11 is allowed to heavily change internals while keeping the public
-`Node`/`FormView` API stable. The target is a representation that is faster to
-walk, faster to query, and closer to contiguous memory.
+Plan 11 is allowed to heavily change internals while keeping one normal public
+API: `parse`/`parse_owned`, then `Node` and `FormView`. The target is a
+representation that is faster to walk, faster to query, and closer to
+contiguous memory without asking users to switch to a second "fast" reader.
 
 Current gap during Plan 11:
 
-1. `assets_10k` parse is about 2.72x behind yyjson on the latest Plan 11 run.
-2. `asset_database_5k` parse is about 2.74x behind yyjson.
+1. `assets_10k` parse is about 2.71x behind yyjson on the latest Plan 11 run.
+2. `asset_database_5k` parse is about 2.68x behind yyjson.
 3. `code_forms_2k` parse is about 2.53x behind yyjson.
-4. `assets_10k` lookup is about 6.85x behind yyjson.
-5. `many_keys_last` lookup is about 2.07x behind yyjson.
-6. The public API is now clean enough that internal representation churn should
+4. `assets_10k` lookup is about 4.58x behind yyjson.
+5. `asset_database_5k` lookup is about 3.39x behind yyjson.
+6. `many_keys_last` lookup is about 1.96x behind yyjson.
+7. The public API is now clean enough that internal representation churn should
    not force another user-facing rewrite.
 
 Public API direction:
@@ -236,13 +243,14 @@ Public API direction:
 1. Keep one normal consumption path: `parse`/`parse_owned`, then `Node` and
    `FormView`.
 2. Do not add a second public batch/cursor API just to win benchmarks. yyjson's
-   compared path uses normal repeated object lookup; `gsexp` should make normal
-   `FormView::get_*` calls competitive.
-3. `FormView` is allowed to hold internal state if that makes the normal API
-   faster. That state should be cheap to construct, non-owning where possible,
-   and backed by `ParseStorage` when it needs reusable cached data.
+   compared path uses one loaded document and normal repeated object lookup;
+   `gsexp` should make normal `FormView::get_*` calls competitive.
+3. `FormView` should no longer be treated as necessarily stateless. It may hold
+   tiny mutable state, a storage-cache handle, or a pointer/id into
+   `ParseStorage` if that makes the same public API faster.
 4. Storage-owned caches are preferred over user-visible helper objects. A normal
    caller should not need to choose between a "simple" API and a "fast" API.
+   The fast path should be hidden behind `FormView`.
 5. Benchmark-only scan-once or cursor experiments are allowed only to identify
    the ceiling and bottleneck. If they win, the production fix should be
    internal state, storage-owned caches, or representation changes behind the
@@ -316,6 +324,7 @@ Attempt results so far:
 | Aggressive sampled node reserve fallback | Rejected. Accepting any sampled node-reserve estimate below the legacy `source.size() / 4` reserve reduced retained memory on mixed asset databases, but the growth churn cost was too high. `asset_database_20k` retained approximate bytes dropped from about 17.81 MB to 14.93 MB, but parse throughput fell from 333.87 to 313.80 MiB/s. `asset_database_5k` fell to 286.83 MiB/s, so the stricter half-legacy fallback was restored. |
 | Simple decimal float parser | Rejected. A short custom decimal parser for common float atoms tried to avoid `std::from_chars()` after the existing shape checks, with fallback for uncommon forms. It did not improve the float-heavy lookup path: `query_last_10k` measured 9.88M q/s and `query_assets_10k` 22.82M q/s, both below the kept lazy-float-cache runs. The direct `from_chars()` conversion was restored. |
 | Mixed asset database query fixture | Kept. The benchmark suite now queries heterogeneous `texture`, `sound`, and `prefab` records from `asset_database_5k`, extracting head/kind, `id`, `path`, and two kind-specific fields. This gives lookup changes a non-uniform asset workload alongside the simple `(asset ...)` query. First measured comparison: `gsexp` reached 21.88M q/s with about 4.98 MB retained after the float cache, while yyjson reached 79.71M q/s on the equivalent JSON records. |
+| Monotonic `FormView` scan hint | Rejected. A tiny mutable hint let repeated small-form lookups resume after the previously found child while keeping the same public API and avoiding heap allocation. A same-session A/B run showed only a small common-lookup win (`query_assets_10k` 24.10M q/s versus 23.47M q/s) and broader regressions: `query_last_10k` fell from 11.29M to 9.95M q/s, `query_missing_10k` from 14.40M to 12.91M q/s, `query_string_view_10k` from 16.39M to 15.79M q/s, `query_asset_database_5k` from 23.88M to 22.57M q/s, and wide indexed lookup cases also fell. The stateless direct scan was restored. |
 
 Work order:
 
@@ -370,7 +379,7 @@ Work order:
    Revisit state after the rejected per-view heap-vector cache and resume-hint
    attempts. The target is still one user-facing API: `form.get_int("id")`,
    `form.get_float("x")`, and similar calls. Try tiny inline state for one
-   active form, storage-owned per-form caches keyed by node index, and fixed
+   active form, a storage-owned form-state table keyed by node index, and fixed
    small-form indexes. Reject designs that allocate per view, require users to
    call a separate batch/cursor API, or make `FormView` lifetime surprising.
 
@@ -388,37 +397,64 @@ Work order:
     threshold-gated sorted mini-index. Keep allocation lazy and visible in
     benchmark memory stats.
 
-12. Numeric parse specialization.
+12. Stateful `FormView` cache handle.
+    Let `FormView` cheaply remember that its form has a storage-owned state
+    entry. This is still one public API because callers only construct
+    `FormView` and call `get_*`. Measure whether avoiding repeated lookup-table
+    probes helps the common multi-field asset query.
+
+13. Adaptive small-form policy.
+    Direct scans are good for one-off lookups, while mini-indexes may help
+    repeated lookups on the same form. Try switching only after the second or
+    third lookup on a form. Reject if the one-off benchmarks or retained memory
+    get worse enough to outweigh the common asset case.
+
+14. Fixed small-form state with field count gating.
+    Re-test the small-form cache with a stricter trigger: only forms whose child
+    count matches asset-like records and only after repeated lookups. Avoid the
+    rejected eager/every-form cache shape.
+
+15. Hot key identity cache.
+    Track a tiny storage-owned mapping for repeated caller keys such as `id`,
+    `path`, `x`, and `y`. Keep it internal to `FormView::get_*`; do not expose
+    compiled keys unless repeated string-key resolution is proven to dominate.
+
+16. Form-state memory accounting.
+    Any stateful lookup structure must report capacity and byte usage in
+    `StorageStats`, like child indexes and float caches. Hidden memory growth is
+    not an acceptable speed win.
+
+17. Numeric parse specialization.
     Try small custom parsers for common integer and simple decimal float shapes.
     Keep exact rejection behavior covered by tests. Reject if `from_chars` is
     still faster or if correctness gets harder to reason about.
 
-13. Lazy numeric metadata.
+18. Lazy numeric metadata.
     Preserve atom-first semantics, but try storage-owned numeric classification
     or conversion caches so repeated `get_int()` and `get_float()` do not
     re-validate and re-convert the same atom text. Keep this behind the normal
     `FormView::get_*` API.
 
-14. Scanner success-path rewrite.
+19. Scanner success-path rewrite.
     Tighten whitespace/comment/atom/string scanning after the representation
     change. Separate syntax scanning from tree construction enough that hot
     loops stay simple. Preserve diagnostics.
 
-15. SIMD integration.
+20. SIMD integration.
     Integrate the existing SSE2 delimiter/string scan proof only after scalar
     representation changes settle. SIMD remains optional with scalar fallback.
     Benchmark parse cases and compile portability.
 
-16. Allocation discipline.
+21. Allocation discipline.
     Reduce growth churn across nodes, child indices, decoded text, symbol table,
     and lazy indexes. Prefer flat arenas over per-list heap allocations.
 
-17. Real workload fixtures.
+22. Real workload fixtures.
     Add larger and more realistic generated asset database cases, and later
     real project fixtures when available. Keep synthetic yyjson comparisons,
     but do not optimize solely for synthetic records.
 
-18. API audit after internals settle.
+23. API audit after internals settle.
     Keep `Node` and `FormView` public behavior stable. Only add public API if
     benchmarks prove users need explicit symbol handles or caller-side compiled
     keys.

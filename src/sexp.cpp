@@ -38,8 +38,22 @@ std::optional<int> float_to_int(double value) {
     return static_cast<int>(value);
 }
 
+bool can_start_number(std::string_view text) {
+    if (text.empty())
+        return false;
+
+    char c = text.front();
+    return std::isdigit(static_cast<unsigned char>(c)) || c == '+' || c == '-' || c == '.';
+}
+
 Value atom_value(std::string text) {
     Value atom;
+    if (!can_start_number(text)) {
+        atom.type = ValueType::Symbol;
+        atom.text = std::move(text);
+        return atom;
+    }
+
     if (looks_like_integer(text)) {
         try {
             atom.type = ValueType::Int;
@@ -176,6 +190,7 @@ class Parser {
         advance();
 
         std::string buffer;
+        buffer.reserve(32);
         while (index < text.size()) {
             char ch = text[index];
             advance();

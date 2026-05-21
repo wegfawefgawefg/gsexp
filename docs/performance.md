@@ -26,6 +26,10 @@ catch parser-level improvements, not full application startup behavior.
 | 2026-05-21 | Reserve 4 child slots for every list | 31.00 | 16.15 | Reverted; mixed, slower large case |
 | 2026-05-21 | Reserve 2 child slots for every list | 27.34 | 21.44 | Kept |
 | 2026-05-21 | Fast-path unescaped strings | 28.68 | 21.12 | Reverted; slower |
+| 2026-05-21 | Skip numeric checks for atoms that cannot start numbers | 36.07 | 27.48 | Kept |
+| 2026-05-21 | Reserve 32 bytes for parsed strings | 37.76 | 29.30 | Kept |
+| 2026-05-21 | Retest reserve 4 child slots after numeric guard/string reserve | 34.00 | 20.03 | Reverted; slower |
+| 2026-05-21 | Full lazy numeric parsing: store numeric atoms as symbols | 42.35 | 30.94 | Rejected; changes public `Value::type` behavior |
 
 ## Optimization Plan 2
 
@@ -82,3 +86,40 @@ Candidate attempts:
    The existing recursive `std::vector<Value>` API may cap performance. Any
    public shape change must be deliberate, documented, and justified by measured
    gains large enough to offset the usability/API cost.
+
+## Optimization Plan 2 Status
+
+1. Lazy numeric parsing.
+   - Compatibility-safe numeric-start guard was kept. It avoids numeric checks
+     for atoms that cannot be numbers while preserving `Int` and `Float` values
+     for numeric atoms.
+   - Full lazy numeric parsing measured faster, but was rejected because it
+     changed public parse-tree behavior by storing numeric atoms as `Symbol`.
+
+2. Compact child storage for common short lists.
+   - `reserve(2)` for parsed lists was kept.
+   - `reserve(4)` was tested twice and rejected because it slowed the large
+     asset-style benchmark.
+   - A true small-vector representation would require changing `Value::list`
+     away from `std::vector<Value>`, which is a public shape change.
+
+3. Arena-backed allocation.
+   - Not implemented under the current public API. Returned `ParseResult` owns
+     recursive `std::string` and `std::vector<Value>` members directly, so an
+     internal arena cannot back the returned data without changing public
+     ownership semantics.
+
+4. Reduce repeated key allocation and comparison.
+   - No separate key-interning change was kept. Short repeated keys are usually
+     handled by small-string optimization, and the current benchmark measures
+     parse/tree construction rather than repeated `find_child` queries.
+
+5. Flat node construction with tree materialization at the edge.
+   - Not implemented. It would still need to materialize the public recursive
+     `Value` tree, so it is unlikely to remove the main allocation cost without
+     a larger public representation change.
+
+6. Reconsider public `Value`.
+   - Deferred. The current API remains source-compatible and behavior-compatible.
+     Further large gains probably require a deliberate `Value` representation
+     redesign rather than more parser-local tricks.

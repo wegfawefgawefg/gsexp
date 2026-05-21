@@ -83,4 +83,13 @@ The build script also runs the test executable through CTest.
 ./scripts/run.sh
 ```
 
+## Benchmark
+
+```sh
+./scripts/bench.sh
+```
+
+Benchmark results and optimization notes are kept in
+[docs/performance.md](docs/performance.md).
+
 See [docs/spec.md](docs/spec.md) for design boundaries.

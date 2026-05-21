@@ -2,7 +2,6 @@
 
 #include <cctype>
 #include <cmath>
-#include <cstdlib>
 #include <limits>
 
 namespace gsexp {
@@ -29,89 +28,6 @@ void add_diagnostic(std::vector<Diagnostic>* diagnostics,
     diagnostics->push_back(Diagnostic{severity, std::move(message), line, column});
 }
 
-bool parse_value(const std::vector<Token>& tokens,
-                 std::size_t& index,
-                 Value& out,
-                 std::vector<Diagnostic>& diagnostics) {
-    if (index >= tokens.size()) {
-        diagnostics.push_back(
-            Diagnostic{DiagnosticSeverity::Error, "expected value", 1, 1});
-        return false;
-    }
-
-    const Token& token = tokens[index];
-    switch (token.type) {
-        case TokenType::LParen: {
-            ++index;
-            Value list;
-            list.type = ValueType::List;
-
-            while (index < tokens.size() && tokens[index].type != TokenType::RParen) {
-                Value child;
-                if (!parse_value(tokens, index, child, diagnostics))
-                    return false;
-                list.list.push_back(std::move(child));
-            }
-
-            if (index >= tokens.size()) {
-                diagnostics.push_back(Diagnostic{
-                    DiagnosticSeverity::Error,
-                    "missing closing ')'",
-                    token.line,
-                    token.column,
-                });
-                return false;
-            }
-
-            ++index;
-            out = std::move(list);
-            return true;
-        }
-        case TokenType::RParen:
-            diagnostics.push_back(Diagnostic{
-                DiagnosticSeverity::Error,
-                "unexpected ')'",
-                token.line,
-                token.column,
-            });
-            return false;
-        case TokenType::String:
-            ++index;
-            out = Value{};
-            out.type = ValueType::String;
-            out.text = token.text;
-            return true;
-        case TokenType::Atom: {
-            ++index;
-            Value atom;
-            if (looks_like_integer(token.text)) {
-                try {
-                    atom.type = ValueType::Int;
-                    atom.int_value = std::stoll(token.text);
-                } catch (...) {
-                    atom.type = ValueType::Symbol;
-                    atom.text = token.text;
-                }
-            } else if (looks_like_float(token.text)) {
-                try {
-                    atom.type = ValueType::Float;
-                    atom.float_value = std::stod(token.text);
-                } catch (...) {
-                    atom.type = ValueType::Symbol;
-                    atom.text = token.text;
-                }
-            } else {
-                atom.type = ValueType::Symbol;
-                atom.text = token.text;
-            }
-            out = std::move(atom);
-            return true;
-        }
-    }
-
-    return false;
-}
-
 std::optional<int> float_to_int(double value) {
     if (!std::isfinite(value))
         return std::nullopt;
@@ -121,6 +37,186 @@ std::optional<int> float_to_int(double value) {
     }
     return static_cast<int>(value);
 }
+
+Value atom_value(std::string text) {
+    Value atom;
+    if (looks_like_integer(text)) {
+        try {
+            atom.type = ValueType::Int;
+            atom.int_value = std::stoll(text);
+        } catch (...) {
+            atom.type = ValueType::Symbol;
+            atom.text = std::move(text);
+        }
+    } else if (looks_like_float(text)) {
+        try {
+            atom.type = ValueType::Float;
+            atom.float_value = std::stod(text);
+        } catch (...) {
+            atom.type = ValueType::Symbol;
+            atom.text = std::move(text);
+        }
+    } else {
+        atom.type = ValueType::Symbol;
+        atom.text = std::move(text);
+    }
+    return atom;
+}
+
+class Parser {
+  public:
+    explicit Parser(std::string_view source) : text(source) {}
+
+    ParseResult parse() {
+        ParseResult result;
+
+        while (true) {
+            skip_space_and_comments();
+            if (index >= text.size())
+                break;
+
+            Value value;
+            if (!parse_value(value, result.diagnostics))
+                return result;
+            result.values.push_back(std::move(value));
+        }
+
+        result.ok = true;
+        return result;
+    }
+
+  private:
+    std::string_view text;
+    std::size_t index = 0;
+    int line = 1;
+    int column = 1;
+
+    void advance() {
+        advance_position(text[index], line, column);
+        ++index;
+    }
+
+    void add_error(std::vector<Diagnostic>& diagnostics,
+                   std::string message,
+                   int error_line,
+                   int error_column) {
+        diagnostics.push_back(
+            Diagnostic{DiagnosticSeverity::Error, std::move(message), error_line, error_column});
+    }
+
+    void skip_space_and_comments() {
+        while (index < text.size()) {
+            char c = text[index];
+            if (std::isspace(static_cast<unsigned char>(c))) {
+                advance();
+                continue;
+            }
+
+            if (c == ';' || c == '#') {
+                while (index < text.size() && text[index] != '\n')
+                    advance();
+                continue;
+            }
+
+            return;
+        }
+    }
+
+    bool parse_value(Value& out, std::vector<Diagnostic>& diagnostics) {
+        if (index >= text.size()) {
+            add_error(diagnostics, "expected value", line, column);
+            return false;
+        }
+
+        char c = text[index];
+        if (c == '(')
+            return parse_list(out, diagnostics);
+        if (c == ')') {
+            add_error(diagnostics, "unexpected ')'", line, column);
+            return false;
+        }
+        if (c == '"')
+            return parse_string(out, diagnostics);
+
+        parse_atom(out);
+        return true;
+    }
+
+    bool parse_list(Value& out, std::vector<Diagnostic>& diagnostics) {
+        int start_line = line;
+        int start_column = column;
+        advance();
+
+        Value list;
+        list.type = ValueType::List;
+        list.list.reserve(2);
+
+        while (true) {
+            skip_space_and_comments();
+            if (index >= text.size()) {
+                add_error(diagnostics, "missing closing ')'", start_line, start_column);
+                return false;
+            }
+            if (text[index] == ')') {
+                advance();
+                out = std::move(list);
+                return true;
+            }
+
+            Value child;
+            if (!parse_value(child, diagnostics))
+                return false;
+            list.list.push_back(std::move(child));
+        }
+    }
+
+    bool parse_string(Value& out, std::vector<Diagnostic>& diagnostics) {
+        int start_line = line;
+        int start_column = column;
+        advance();
+
+        std::string buffer;
+        while (index < text.size()) {
+            char ch = text[index];
+            advance();
+
+            if (ch == '\\' && index < text.size()) {
+                char esc = text[index];
+                advance();
+                switch (esc) {
+                    case 'n': buffer.push_back('\n'); break;
+                    case 'r': buffer.push_back('\r'); break;
+                    case 't': buffer.push_back('\t'); break;
+                    case '\\': buffer.push_back('\\'); break;
+                    case '"': buffer.push_back('"'); break;
+                    default: buffer.push_back(esc); break;
+                }
+            } else if (ch == '"') {
+                out = Value{};
+                out.type = ValueType::String;
+                out.text = std::move(buffer);
+                return true;
+            } else {
+                buffer.push_back(ch);
+            }
+        }
+
+        add_error(diagnostics, "unterminated string", start_line, start_column);
+        return false;
+    }
+
+    void parse_atom(Value& out) {
+        std::size_t start = index;
+        while (index < text.size()) {
+            char ch = text[index];
+            if (std::isspace(static_cast<unsigned char>(ch)) || ch == '(' || ch == ')')
+                break;
+            advance();
+        }
+
+        out = atom_value(std::string(text.substr(start, index - start)));
+    }
+};
 
 } // namespace
 
@@ -289,24 +385,8 @@ std::vector<Token> tokenize(std::string_view text, std::vector<Diagnostic>* diag
 }
 
 ParseResult parse(std::string_view text) {
-    ParseResult result;
-    std::vector<Token> tokens = tokenize(text, &result.diagnostics);
-
-    for (const Diagnostic& diagnostic : result.diagnostics) {
-        if (diagnostic.severity == DiagnosticSeverity::Error)
-            return result;
-    }
-
-    std::size_t index = 0;
-    while (index < tokens.size()) {
-        Value value;
-        if (!parse_value(tokens, index, value, result.diagnostics))
-            return result;
-        result.values.push_back(std::move(value));
-    }
-
-    result.ok = true;
-    return result;
+    Parser parser(text);
+    return parser.parse();
 }
 
 bool is_symbol(const Value& value, std::string_view symbol) {

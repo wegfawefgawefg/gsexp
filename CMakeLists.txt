@@ -6,6 +6,7 @@ option(GSEXP_STRICT "Enable strict compiler warnings" ON)
 option(GSEXP_WARN_AS_ERROR "Treat warnings as errors" OFF)
 option(GSEXP_BUILD_EXAMPLES "Build example programs" ON)
 option(GSEXP_BUILD_TESTS "Build test programs" ON)
+option(GSEXP_BUILD_BENCHMARKS "Build benchmark programs" OFF)
 
 add_library(gsexp
     src/sexp.cpp
@@ -63,4 +64,11 @@ if(GSEXP_BUILD_TESTS)
     gsexp_apply_warnings(gsexp_tests)
 
     add_test(NAME gsexp_tests COMMAND gsexp_tests)
+endif()
+
+if(GSEXP_BUILD_BENCHMARKS)
+    add_executable(gsexp_parse_bench benchmarks/parse_bench.cpp)
+    target_link_libraries(gsexp_parse_bench PRIVATE gsexp::gsexp)
+    target_compile_features(gsexp_parse_bench PRIVATE cxx_std_20)
+    gsexp_apply_warnings(gsexp_parse_bench)
 endif()

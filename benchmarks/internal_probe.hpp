@@ -246,4 +246,79 @@ inline double run_ordered_asset_query_once(const gsexp::ParseResult& result, int
     return std::chrono::duration<double>(end - start).count();
 }
 
+inline std::uint32_t nth_arg(const gsexp::ParseStorage& storage,
+                             const gsexp::NodeData& field,
+                             std::size_t arg_index) {
+    std::uint32_t value_index = value_child(storage, field);
+    for (std::size_t offset = 0; offset < arg_index && value_index != gsexp::invalid_node; ++offset) {
+        if (value_index >= storage.nodes.size())
+            return gsexp::invalid_node;
+        value_index = storage.nodes[value_index].next_sibling;
+    }
+    return value_index;
+}
+
+inline std::uint32_t required_nth_arg(const gsexp::ParseStorage& storage,
+                                      std::uint32_t field_index,
+                                      std::size_t arg_index) {
+    if (field_index == gsexp::invalid_node || field_index >= storage.nodes.size()) {
+        std::cerr << "internal nested find_arg probe missing field\n";
+        std::exit(1);
+    }
+
+    std::uint32_t value_index = nth_arg(storage, storage.nodes[field_index], arg_index);
+    if (value_index == gsexp::invalid_node || value_index >= storage.nodes.size()) {
+        std::cerr << "internal nested find_arg probe missing arg\n";
+        std::exit(1);
+    }
+    return value_index;
+}
+
+inline double run_nested_find_arg_once(const gsexp::ParseResult& result, int iterations) {
+    const gsexp::ParseStorage& storage = *result.storage;
+    std::uint32_t root_index = result.roots[0];
+    if (root_index >= storage.nodes.size()) {
+        std::cerr << "internal nested find_arg probe has invalid root\n";
+        std::exit(1);
+    }
+
+    double sink = 0.0;
+    auto start = std::chrono::steady_clock::now();
+    for (int iteration = 0; iteration < iterations; ++iteration) {
+        std::uint32_t layout_index = next_valid_sibling(storage, storage.nodes[root_index].first_child);
+        while (layout_index != gsexp::invalid_node && layout_index < storage.nodes.size()) {
+            const gsexp::NodeData& layout = storage.nodes[layout_index];
+            std::uint32_t id_field = next_valid_sibling(storage, layout.first_child);
+            std::uint32_t title_field = next_valid_sibling(storage, id_field);
+            std::uint32_t play_field = next_valid_sibling(storage, title_field);
+            std::uint32_t settings_field = next_valid_sibling(storage, play_field);
+            std::uint32_t credits_field = next_valid_sibling(storage, settings_field);
+
+            std::uint32_t id_value = required_value_child(storage, id_field);
+            std::uint32_t title_value = required_nth_arg(storage, title_field, 0);
+            std::uint32_t play_x = required_nth_arg(storage, play_field, 1);
+            std::uint32_t settings_w = required_nth_arg(storage, settings_field, 3);
+            std::uint32_t credits_h = required_nth_arg(storage, credits_field, 4);
+
+            int id = parse_required_int(node_text(storage, storage.nodes[id_value]));
+            std::string_view title = node_text(storage, storage.nodes[title_value]);
+            std::string_view play_x_text = node_text(storage, storage.nodes[play_x]);
+            std::string_view settings_w_text = node_text(storage, storage.nodes[settings_w]);
+            std::string_view credits_h_text = node_text(storage, storage.nodes[credits_h]);
+
+            sink += static_cast<double>(id) + static_cast<double>(title.size()) +
+                    static_cast<double>(play_x_text.size()) +
+                    static_cast<double>(settings_w_text.size()) +
+                    static_cast<double>(credits_h_text.size());
+            layout_index = layout.next_sibling;
+        }
+    }
+    auto end = std::chrono::steady_clock::now();
+    if (sink == 0.0) {
+        std::cerr << "internal nested find_arg probe did no work\n";
+        std::exit(1);
+    }
+    return std::chrono::duration<double>(end - start).count();
+}
+
 } // namespace internal_probe

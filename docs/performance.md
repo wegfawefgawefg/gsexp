@@ -56,6 +56,7 @@ Latest verified Plan 11 results on this machine:
 | query_child_at_many_keys_last | 7.54M queries/s |
 | query_find_arg_many_keys_last | 7.35M queries/s |
 | query_nested_find_arg_5k | 24.19M queries/s |
+| query_internal_nested_find_arg_5k | 88.30M queries/s |
 
 Latest yyjson comparison results:
 
@@ -371,6 +372,7 @@ Attempt results so far:
 | Nested `find_arg()` benchmark fixture | Kept. The benchmark suite now includes `query_nested_find_arg_5k`, a layout-like fixture with child forms such as `(title label x y w h)` and `(play label x y w h)`. The query uses normal `FormView::find_arg()` plus one `get_int()` and measured 24.19M q/s on the first run. This is measurement support for Plan 11 nested lookup work, not a new public API. |
 | Unrolled common `find_arg()` argument indexes | Rejected. `find_arg()` and `get_*()` tried replacing the small argument-walk loop with explicit fast paths for argument indexes 0 through 4, falling back to the loop above that. The nested layout benchmark barely moved, from the recorded 24.19M q/s to 24.31M q/s, while `query_find_arg_many_keys_last` measured only 7.09M q/s and the helper added a large branchy block. The simple loop was restored. |
 | Lower lazy child-index threshold to 8 | Rejected. Lowering `indexed_child_threshold` from 16 to 8 forced asset-sized forms onto the existing lazy index path. It was much worse for the target workload: `query_assets_10k` fell to 14.13M q/s, `query_first_10k` fell to 9.52M q/s, and the `query_assets_10k` stats built 10k child indexes with retained approximate bytes rising from about 9.62 MB to 11.79 MB. The threshold was restored to 16. |
+| Internal nested layout query probe | Kept. This is benchmark-only ceiling measurement for the new layout-like nested `find_arg()` fixture. It walks the known generated layout field order directly through `ParseStorage`/`NodeData`, then reads the same values as `query_nested_find_arg_5k`. First measured run: public nested `find_arg()` reached 23.84M q/s while the internal ordered probe reached 88.30M q/s. This shows the layout-like workload still has a large lookup/traversal gap available behind the normal `FormView` API. |
 
 Current pending Plan 11 queue:
 

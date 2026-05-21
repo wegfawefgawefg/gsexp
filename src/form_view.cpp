@@ -150,24 +150,32 @@ std::uint32_t find_child_index(const ParseStorage& storage,
 
     std::uint16_t cache_index = storage.child_index_lookup[list_index];
     if (cache_index == invalid_child_index_cache) {
-        ChildIndexCache cache;
-        cache.entries = build_child_index(storage, list);
+        std::vector<KeyIndexEntry> entries = build_child_index(storage, list);
         if (storage.child_indexes.size() >= invalid_child_index_cache)
             return find_child_index_direct(storage, list, searched_head);
+
+        ChildIndexCache cache;
+        cache.first_entry = static_cast<std::uint32_t>(storage.child_index_entries.size());
+        cache.entry_count = static_cast<std::uint32_t>(entries.size());
+        if (storage.child_index_entries.empty())
+            storage.child_index_entries.reserve(storage.nodes.size() / 3);
+        storage.child_index_entries.insert(storage.child_index_entries.end(), entries.begin(), entries.end());
 
         cache_index = static_cast<std::uint16_t>(storage.child_indexes.size());
         storage.child_indexes.push_back(std::move(cache));
         storage.child_index_lookup[list_index] = cache_index;
     }
 
-    const std::vector<KeyIndexEntry>& entries = storage.child_indexes[static_cast<std::size_t>(cache_index)].entries;
-    auto entry = std::lower_bound(entries.begin(),
-                                  entries.end(),
+    const ChildIndexCache& cache = storage.child_indexes[static_cast<std::size_t>(cache_index)];
+    auto begin = storage.child_index_entries.begin() + cache.first_entry;
+    auto end = begin + cache.entry_count;
+    auto entry = std::lower_bound(begin,
+                                  end,
                                   searched_head,
                                   [&storage](const KeyIndexEntry& item, std::string_view key) {
                                       return compare_index_key(storage, item, key) < 0;
                                   });
-    if (entry != entries.end() && compare_index_key(storage, *entry, searched_head) == 0)
+    if (entry != end && compare_index_key(storage, *entry, searched_head) == 0)
         return entry->child;
 
     return invalid_node;

@@ -68,7 +68,8 @@ struct KeyIndexEntry {
 };
 
 struct ChildIndexCache {
-    std::vector<KeyIndexEntry> entries;
+    std::uint32_t first_entry = 0;
+    std::uint32_t entry_count = 0;
 };
 
 struct ChildCountOverflow {
@@ -83,6 +84,7 @@ struct ParseStorage {
     std::vector<NodeData> nodes;
     std::vector<ChildCountOverflow> child_count_overflows;
     mutable std::vector<ChildIndexCache> child_indexes;
+    mutable std::vector<KeyIndexEntry> child_index_entries;
     mutable std::vector<std::uint16_t> child_index_lookup;
     mutable std::vector<float> float_cache;
 };

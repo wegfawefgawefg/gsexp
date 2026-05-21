@@ -75,6 +75,7 @@ void print_storage_stats(const char* name, const gsexp::ParseResult& result) {
               << " child_index_lookup_capacity=" << stats.child_index_lookup_capacity
               << " child_index_lookup_bytes=" << stats.child_index_lookup_bytes
               << " child_index_entries=" << stats.child_index_entry_count
+              << " child_index_entry_capacity=" << stats.child_index_entry_capacity
               << " float_cache_capacity=" << stats.float_cache_capacity
               << " float_cache_bytes=" << stats.float_cache_bytes
               << " approximate_bytes=" << stats.approximate_bytes << "\n";

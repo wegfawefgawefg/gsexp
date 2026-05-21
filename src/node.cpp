@@ -105,12 +105,10 @@ StorageStats ParseResult::storage_stats() const {
     stats.child_index_cache_bytes = stats.child_index_capacity * sizeof(ChildIndexCache);
     stats.child_index_lookup_capacity = storage->child_index_lookup.capacity();
     stats.child_index_lookup_bytes = stats.child_index_lookup_capacity * sizeof(std::uint16_t);
+    stats.child_index_entry_count = storage->child_index_entries.size();
+    stats.child_index_entry_capacity = storage->child_index_entries.capacity();
     stats.float_cache_capacity = storage->float_cache.capacity();
     stats.float_cache_bytes = stats.float_cache_capacity * sizeof(float);
-    for (const ChildIndexCache& item : storage->child_indexes) {
-        stats.child_index_entry_count += item.entries.size();
-        stats.child_index_entry_capacity += item.entries.capacity();
-    }
 
     stats.approximate_bytes = storage->source.capacity() +
                               storage->nodes.capacity() * sizeof(NodeData) +

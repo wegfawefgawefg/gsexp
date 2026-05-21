@@ -463,6 +463,7 @@ int main() {
     run_parse_case("strings_plain_5k", data::make_string_data(5000, false, 12), 50);
     run_parse_case("strings_escaped_5k", data::make_string_data(5000, true, 12), 50);
     run_parse_case("deep_1k", data::make_deep_data(1000), 500);
+    run_parse_case("code_forms_2k", data::make_code_data(2000), 50);
     run_parse_case("wide_10k", wide_10k, 50);
     run_query_case("query_assets_10k", assets_10k, 10000, 100, QueryMode::Common);
     run_query_case("query_first_10k", assets_10k, 10000, 500, QueryMode::First);

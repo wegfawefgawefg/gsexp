@@ -133,8 +133,35 @@ inline std::string make_deep_data(int depth) {
         out += "(node ";
     out += "leaf";
     for (int i = 0; i < depth; ++i)
-        out += ')';
+    out += ')';
     return out;
+}
+
+inline std::string make_code_data(int functions) {
+    std::ostringstream out;
+    out << "(module"
+        << " (name gameplay_rules)"
+        << " (imports (import math) (import input) (import world))\n";
+
+    for (int i = 0; i < functions; ++i) {
+        out << "  (fn update_entity_" << i
+            << " (params (entity e) (float dt) (int frame))"
+            << " (returns bool)"
+            << " (block"
+            << " (let speed (+ base_speed " << (i % 17) << "))"
+            << " (let active (and (visible e) (> health 0)))"
+            << " (if active"
+            << " (block"
+            << " (set pos.x (+ pos.x (* speed dt)))"
+            << " (set pos.y (+ pos.y (* (sin frame) 0.25)))"
+            << " (emit \"entity_updated\" e))"
+            << " (block"
+            << " (set sleep_timer (+ sleep_timer dt))))"
+            << " (return active)))\n";
+    }
+
+    out << ")\n";
+    return out.str();
 }
 
 inline std::string make_wide_data(int items) {

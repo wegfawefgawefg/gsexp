@@ -27,41 +27,42 @@ Latest verified Plan 11 results on this machine:
 
 | Case | Result |
 | --- | ---: |
-| assets_10k | 233.34 MiB/s |
-| assets_50k | 208.44 MiB/s |
-| asset_database_5k | 296.71 MiB/s |
-| asset_database_5k_owned | 284.59 MiB/s |
-| asset_database_5k_file_read | 367.56 MiB/s |
-| asset_database_5k_file_owned | 161.24 MiB/s |
-| small_files_1k | 196.13 MiB/s |
-| strings_plain_5k | 918.15 MiB/s |
-| strings_escaped_5k | 645.53 MiB/s |
-| deep_1k | 122.99 MiB/s |
-| wide_10k | 272.55 MiB/s |
-| query_assets_10k | 15.72M queries/s |
-| query_first_10k | 12.42M queries/s |
-| query_last_10k | 6.85M queries/s |
-| query_missing_10k | 10.80M queries/s |
-| query_string_view_10k | 12.96M queries/s |
-| query_text_only_10k | 38.37M queries/s |
-| query_symbol_compare_10k | 29.93M queries/s |
-| query_many_keys_last | 5.67M queries/s |
-| query_find_many_keys_last | 4.84M queries/s |
-| query_child_at_many_keys_last | 4.44M queries/s |
+| assets_10k | 235.80 MiB/s |
+| assets_50k | 203.31 MiB/s |
+| asset_database_5k | 282.84 MiB/s |
+| asset_database_5k_owned | 274.36 MiB/s |
+| asset_database_5k_file_read | 384.36 MiB/s |
+| asset_database_5k_file_owned | 169.65 MiB/s |
+| small_files_1k | 187.33 MiB/s |
+| strings_plain_5k | 1000.78 MiB/s |
+| strings_escaped_5k | 716.16 MiB/s |
+| deep_1k | 205.84 MiB/s |
+| code_forms_2k | 242.29 MiB/s |
+| wide_10k | 329.22 MiB/s |
+| query_assets_10k | 16.30M queries/s |
+| query_first_10k | 12.03M queries/s |
+| query_last_10k | 8.11M queries/s |
+| query_missing_10k | 11.26M queries/s |
+| query_string_view_10k | 12.46M queries/s |
+| query_text_only_10k | 43.37M queries/s |
+| query_symbol_compare_10k | 30.37M queries/s |
+| query_many_keys_last | 4.92M queries/s |
+| query_find_many_keys_last | 5.58M queries/s |
+| query_child_at_many_keys_last | 4.98M queries/s |
 
 Latest yyjson comparison results:
 
 | Equivalent case | gsexp | yyjson | yyjson/gsexp |
 | --- | ---: | ---: | ---: |
-| assets_10k parse | 233.34 MiB/s | 643.50 MiB/s | 2.76x |
-| assets_50k parse | 208.44 MiB/s | 681.19 MiB/s | 3.27x |
-| asset_database_5k parse | 296.71 MiB/s | 790.75 MiB/s | 2.67x |
-| small_files_1k parse | 196.13 MiB/s | 562.27 MiB/s | 2.87x |
-| strings_plain_5k parse | 918.15 MiB/s | 1334.70 MiB/s | 1.45x |
-| strings_escaped_5k parse | 645.53 MiB/s | 1118.22 MiB/s | 1.73x |
-| wide_10k parse | 272.55 MiB/s | 828.09 MiB/s | 3.04x |
-| assets_10k lookup | 15.72M queries/s | 101.01M queries/s | 6.43x |
-| many_keys_last lookup | 5.67M queries/s | 11.88M queries/s | 2.10x |
+| assets_10k parse | 235.80 MiB/s | 640.45 MiB/s | 2.72x |
+| assets_50k parse | 203.31 MiB/s | 655.35 MiB/s | 3.22x |
+| asset_database_5k parse | 282.84 MiB/s | 783.99 MiB/s | 2.77x |
+| small_files_1k parse | 187.33 MiB/s | 545.40 MiB/s | 2.91x |
+| strings_plain_5k parse | 1000.78 MiB/s | 1382.94 MiB/s | 1.38x |
+| strings_escaped_5k parse | 716.16 MiB/s | 1246.59 MiB/s | 1.74x |
+| wide_10k parse | 329.22 MiB/s | 796.07 MiB/s | 2.42x |
+| assets_10k lookup | 16.30M queries/s | 110.75M queries/s | 6.79x |
+| many_keys_last lookup | 4.92M queries/s | 10.50M queries/s | 2.13x |
 
 These are equivalent data shapes, not byte-identical files. The JSON fixtures
 are generated beside the S-expression fixtures and measured by each format's
@@ -221,10 +222,10 @@ walk, faster to query, and closer to contiguous memory.
 
 Current gap during Plan 11:
 
-1. `assets_10k` parse is about 2.76x behind yyjson on the latest Plan 11 run.
-2. `asset_database_5k` parse is about 2.67x behind yyjson.
-3. `assets_10k` lookup is about 6.43x behind yyjson.
-4. `many_keys_last` lookup is about 2.10x behind yyjson.
+1. `assets_10k` parse is about 2.72x behind yyjson on the latest Plan 11 run.
+2. `asset_database_5k` parse is about 2.77x behind yyjson.
+3. `assets_10k` lookup is about 6.79x behind yyjson.
+4. `many_keys_last` lookup is about 2.13x behind yyjson.
 5. The public API is now clean enough that internal representation churn should
    not force another user-facing rewrite.
 
@@ -242,6 +243,7 @@ Attempt results so far:
 | Flat child-index lookup table | Kept. Wide-form lookup now uses a direct `list_index -> cache_index` table after the first wide lookup. It improved `query_many_keys_last` from 4.94M to 5.65M queries/s and `query_find_many_keys_last` from 4.58M to 6.33M queries/s. The table is allocated lazily only when wide-form indexes are used. |
 | Flat index-entry arena | Rejected. Replacing one vector per lazy wide-form index with one shared `child_index_entries` arena regressed the target wide lookup cases in the measured run: `query_many_keys_last` fell to 5.20M queries/s and `query_find_many_keys_last` fell to 4.88M queries/s. The retained memory shape was simpler, but the lookup path lost enough locality or iterator simplicity to reject it. |
 | Compiler CTZ for SSE2 movemask result | Kept. A same-session A/B run against the manual first-set-bit loop improved important parse cases: `assets_10k` went from 216.00 to 233.34 MiB/s, `asset_database_5k` from 260.47 to 296.71 MiB/s, and `strings_escaped_5k` from 588.81 to 645.53 MiB/s. The fallback loop remains for non-GCC/non-Clang compilers. |
+| Code-like form fixture | Kept. `code_forms_2k` adds a non-record-shaped workload with nested calls, blocks, strings, arithmetic forms, and conditionals. The first measured result is 699,796 bytes, 162,016 nodes, and 242.29 MiB/s. This is benchmark coverage, not an optimization by itself. |
 
 Work order:
 

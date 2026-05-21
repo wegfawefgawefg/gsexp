@@ -430,6 +430,53 @@ void run_query_case(const char* name, const std::string& text, int items, int it
     print_storage_stats(name, result);
 }
 
+double run_child_iteration_once(gsexp::Node root, int iterations) {
+    double sink = 0.0;
+
+    auto start = std::chrono::steady_clock::now();
+    for (int iteration = 0; iteration < iterations; ++iteration) {
+        for (gsexp::Node asset : root.children()) {
+            if (!asset.is_list())
+                continue;
+
+            for (gsexp::Node field : asset.children()) {
+                sink += static_cast<double>(field.child_count());
+                gsexp::Node head = field.head();
+                if (head.valid())
+                    sink += static_cast<double>(head.text().size());
+            }
+        }
+    }
+    auto end = std::chrono::steady_clock::now();
+    if (sink == 0.0) {
+        std::cerr << "child iteration benchmark did no work\n";
+        std::exit(1);
+    }
+    return std::chrono::duration<double>(end - start).count();
+}
+
+void run_child_iteration_case(const char* name, const std::string& text, int items, int iterations) {
+    gsexp::ParseResult result = gsexp::parse(text);
+    if (!result.ok || result.root_count() == 0) {
+        std::cerr << "parse failed before child iteration benchmark: " << name << "\n";
+        std::exit(1);
+    }
+
+    double best_seconds = 0.0;
+    for (int run = 0; run < 3; ++run) {
+        double seconds = run_child_iteration_once(result.root(0), iterations);
+        if (best_seconds == 0.0 || seconds < best_seconds)
+            best_seconds = seconds;
+    }
+
+    std::size_t visits = static_cast<std::size_t>(items) * static_cast<std::size_t>(iterations) * 9u;
+    double visits_per_second = static_cast<double>(visits) / best_seconds;
+    std::cout << name << " items=" << items << " visits=" << visits
+              << " best_of=3 seconds=" << best_seconds
+              << " visits_per_second=" << visits_per_second << "\n";
+    print_storage_stats(name, result);
+}
+
 } // namespace
 
 int main() {
@@ -474,6 +521,7 @@ int main() {
     run_query_case("query_string_view_10k", assets_10k, 10000, 500, QueryMode::StringView);
     run_query_case("query_text_only_10k", assets_10k, 10000, 200, QueryMode::TextOnly);
     run_query_case("query_symbol_compare_10k", assets_10k, 10000, 200, QueryMode::SymbolCompare);
+    run_child_iteration_case("iterate_assets_10k", assets_10k, 10000, 200);
     std::string many_keys_data = data::make_many_keys_data(5000, 24);
     run_query_case("query_many_keys_last", many_keys_data, 5000, 200, QueryMode::ManyLast);
     run_query_case("query_find_many_keys_last", many_keys_data, 5000, 200, QueryMode::FindOnly);

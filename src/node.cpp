@@ -103,6 +103,7 @@ StorageStats ParseResult::storage_stats() const {
     stats.child_index_count = storage->child_indexes.size();
     stats.child_index_capacity = storage->child_indexes.capacity();
     stats.child_index_lookup_capacity = storage->child_index_lookup.capacity();
+    stats.child_index_lookup_bytes = stats.child_index_lookup_capacity * sizeof(std::uint16_t);
     for (const ChildIndexCache& item : storage->child_indexes) {
         stats.child_index_entry_count += item.entries.size();
         stats.child_index_entry_capacity += item.entries.capacity();

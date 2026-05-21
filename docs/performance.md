@@ -55,13 +55,13 @@ Latest verified Plan 11 results on this machine:
 | query_asset_database_20k | 21.17M queries/s |
 | query_internal_asset_database_20k | 33.77M queries/s |
 | query_many_keys_8_last | 10.91M queries/s |
-| query_many_keys_16_last | 9.28M queries/s |
-| query_many_keys_24_last | 7.02M queries/s |
-| query_many_keys_48_last | 4.14M queries/s |
-| query_many_keys_last | 7.38M queries/s |
-| query_find_many_keys_last | 8.12M queries/s |
-| query_child_at_many_keys_last | 7.54M queries/s |
-| query_find_arg_many_keys_last | 7.35M queries/s |
+| query_many_keys_16_last | 9.71M queries/s |
+| query_many_keys_24_last | 8.38M queries/s |
+| query_many_keys_48_last | 3.56M queries/s |
+| query_many_keys_last | 7.30M queries/s |
+| query_find_many_keys_last | 8.80M queries/s |
+| query_child_at_many_keys_last | 7.86M queries/s |
+| query_find_arg_many_keys_last | 7.70M queries/s |
 | query_nested_find_arg_5k | 24.19M queries/s |
 | query_internal_nested_find_arg_5k | 88.30M queries/s |
 
@@ -403,6 +403,7 @@ Attempt results so far:
 | Insertion sort for lazy wide child indexes | Rejected. Wide-form index construction tried replacing `std::stable_sort()` with a simple insertion sort over the temporary `KeyIndexEntry` vector, targeting the small fixed-ish index sizes in `many_keys_last`. The measured result was too mixed: `query_many_keys_last` reached 7.48M q/s and `query_find_arg_many_keys_last` 8.15M q/s, but `query_find_many_keys_last` fell to 6.45M q/s and `query_child_at_many_keys_last` to 5.62M q/s versus current results of 8.12M and 7.54M. The stable sort builder was restored. |
 | Variable-width many-key lookup benchmarks | Kept. The benchmark suite now measures `get_int()` of the last key for 8, 16, 24, and 48-key records, making lazy-index threshold changes easier to evaluate. First measured run: `query_many_keys_8_last` reached 10.91M q/s with no child indexes, `query_many_keys_16_last` reached 9.28M q/s while building 5k indexes and 80k entries, `query_many_keys_24_last` reached 7.02M q/s with 120k entries, and `query_many_keys_48_last` reached 4.14M q/s with 240k entries. This is measurement support, not a parser behavior change. |
 | Raise lazy child-index threshold to 24 | Rejected. The variable-width benchmark suggested checking whether 16-key forms should stay direct to avoid index memory. Raising `indexed_child_threshold` from 16 to 24 did remove the 16-key child indexes and lowered that case's retained memory from about 8.21 MB to 6.65 MB, but lookup throughput fell too much: `query_many_keys_16_last` dropped from 9.28M to 7.20M q/s, `query_many_keys_24_last` stayed below the recorded 7.02M at 6.86M q/s, and `query_many_keys_48_last` fell from 4.14M to 3.80M q/s. The threshold was restored to 16. |
+| Hybrid linear lookup for small child indexes | Kept. Indexed forms with 16 or fewer indexed entries now scan the sorted cache linearly and larger indexed forms keep the binary-search path. First measured run: `query_many_keys_16_last` improved from 9.28M to 9.71M q/s, `query_find_many_keys_last` from 8.12M to 8.80M q/s, `query_child_at_many_keys_last` from 7.54M to 7.86M q/s, and `query_find_arg_many_keys_last` from 7.35M to 7.70M q/s. `query_many_keys_48_last` fell from 4.14M to 3.56M q/s even though that case still uses binary search, so large indexed forms remain a watch item for repeat runs. |
 
 Current pending Plan 11 queue:
 
@@ -618,6 +619,28 @@ Work order:
     benchmarks prove users need explicit symbol handles or caller-side compiled
     keys.
 
+28. Stateful `FormView` must be cache state, not caller ceremony.
+    A stateful view is acceptable only if the same public calls get faster.
+    Prefer small storage handles, per-document key caches, or form-state ids
+    hidden behind `FormView`. Do not require users to choose a different
+    reader, cursor, or prepared query path for normal asset loading.
+
+29. Do not assume every form is a record.
+    Many lists may be code forms, n-ary forms, or positional tuples with more
+    than two values. Any form-state or index design must preserve ordered child
+    traversal and `find_arg()` semantics instead of assuming only `(key value)`
+    pairs.
+
+30. Separate ordered access from named access internally.
+    Code-like forms often want child order, while asset-like forms often want
+    named lookup. A future representation can cache both direct child spans and
+    optional name indexes, but neither should make the other path slower.
+
+31. Benchmark cache warmup explicitly.
+    Lazy state can look good after it is built and bad on the first lookup.
+    Keep first-use, repeated-use, and mixed-use cases in the benchmark output
+    before keeping any stateful design.
+
 Extended experiment queue:
 
 1. Flat index-entry arena.
@@ -759,31 +782,51 @@ Extended experiment queue:
     races, but final decisions should also use files that resemble actual game
     assets and tool output.
 
-28. SIMD delimiter scan.
+28. Form-state transition benchmark.
+    Add a fixture that measures the same form through first lookup, second
+    lookup, and several repeated lookups. Use it before retrying adaptive
+    small-form caches so the threshold is based on data, not guesses.
+
+29. Ordered child-span probe for non-record forms.
+    Add a benchmark-only ordered traversal probe for code-like and tuple-like
+    forms. This should show whether child spans help ordered access even when
+    named lookup is not involved.
+
+30. Mixed lookup pattern fixture.
+    Add a fixture that alternates ordered child access, named `get_*`, and
+    `find_arg()` on the same document. Reject caches that only improve one
+    narrow pattern while hurting the others.
+
+31. Larger wide-form index repeats.
+    Re-run 16, 24, and 48-key lookup cases with cold first lookup separated
+    from repeated lookup. The current 48-key result is noisy enough that the
+    indexed lookup policy needs another pass before larger changes.
+
+32. SIMD delimiter scan.
     Add optional SSE2 delimiter scanning for atom and whitespace-heavy input
     after scalar scanner changes settle. Keep scalar fallback compiled and
     benchmarked.
 
-29. SIMD string scan.
+33. SIMD string scan.
     Add optional SIMD quote/backslash detection for long plain strings. This
     should target the plain string benchmark first and must not slow short
     strings.
 
-30. Memory layout audit.
+34. Memory layout audit.
     Recheck `sizeof(NodeData)`, vector capacities, and retained bytes after each
     kept change. A parse win that bloats retained memory needs a workload-based
     justification.
 
-31. Error-path audit.
+35. Error-path audit.
     Keep diagnostics useful while moving hot loops. Fast success paths are fine,
     but malformed input should still report practical file offsets and reasons.
 
-32. Public API audit.
+36. Public API audit.
     After internals settle, remove accidental exposure of implementation details
     and document the one normal consumption path. Avoid compatibility wrappers
     or parallel public lookup APIs because there are no external consumers yet.
 
-33. Glayout integration check.
+37. Glayout integration check.
     Build `glayout` after any API or vendoring-impacting change. `glayout` is
     the current real consumer and should catch usability regressions earlier
     than synthetic benchmarks.

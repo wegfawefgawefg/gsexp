@@ -10,6 +10,7 @@ namespace gsexp {
 namespace {
 
 constexpr std::uint32_t indexed_child_threshold = 16;
+constexpr std::uint32_t linear_index_lookup_limit = 16;
 constexpr float invalid_cached_float = std::numeric_limits<float>::infinity();
 
 std::string_view node_text(const ParseStorage& storage, const NodeData& node) {
@@ -169,6 +170,14 @@ std::uint32_t find_child_index(const ParseStorage& storage,
     const ChildIndexCache& cache = storage.child_indexes[static_cast<std::size_t>(cache_index)];
     auto begin = storage.child_index_entries.begin() + cache.first_entry;
     auto end = begin + cache.entry_count;
+    if (cache.entry_count <= linear_index_lookup_limit) {
+        for (auto entry = begin; entry != end; ++entry) {
+            if (compare_index_key(storage, *entry, searched_head) == 0)
+                return entry->child;
+        }
+        return invalid_node;
+    }
+
     auto entry = std::lower_bound(begin,
                                   end,
                                   searched_head,

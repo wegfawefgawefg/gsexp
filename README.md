@@ -1,5 +1,9 @@
 # gsexp
 
+<p>
+  <img src="assets/logo.svg" alt="gsexp logo" width="96" height="96">
+</p>
+
 `gsexp` is a small C++20 S-expression parser/writer helper. It is meant for
 simple config and data files used by vendored game libraries.
 

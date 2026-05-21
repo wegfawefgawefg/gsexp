@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">gsexp logo</title>
+  <desc id="desc">A simple S-expression icon with a small clown-like face.</desc>
+  <rect width="256" height="256" rx="48" fill="#172033"/>
+  <circle cx="78" cy="178" r="36" fill="#ff3150"/>
+  <circle cx="178" cy="178" r="36" fill="#11c4d9"/>
+  <ellipse cx="128" cy="122" rx="68" ry="76" fill="#f6f8ff"/>
+  <path d="M70 104c4-30 25-55 53-65 6-2 12 3 11 10-4 28-23 41-49 50l-15 5z" fill="#ff9b1f"/>
+  <path d="M186 104c-4-30-25-55-53-65-6-2-12 3-11 10 4 28 23 41 49 50l15 5z" fill="#ff9b1f"/>
+  <path d="M80 92c-19 14-30 34-30 58s11 44 30 58" fill="none" stroke="#172033" stroke-width="14" stroke-linecap="round"/>
+  <path d="M176 92c19 14 30 34 30 58s-11 44-30 58" fill="none" stroke="#172033" stroke-width="14" stroke-linecap="round"/>
+  <circle cx="105" cy="104" r="9" fill="#172033"/>
+  <circle cx="151" cy="104" r="9" fill="#172033"/>
+  <circle cx="128" cy="116" r="13" fill="#ff3150"/>
+  <path d="M106 150c13 13 31 13 44 0" fill="none" stroke="#172033" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="92" cy="130" r="8" fill="#ff3150"/>
+  <circle cx="164" cy="130" r="8" fill="#ff3150"/>
+</svg>

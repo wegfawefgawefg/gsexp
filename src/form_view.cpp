@@ -50,13 +50,13 @@ std::vector<KeyIndexEntry> build_child_index(const ParseStorage& storage, const 
         if (child.type == ValueType::List && child.first_child != invalid_node) {
             const NodeData& head = storage.nodes[child.first_child];
             if (head.type == ValueType::Atom)
-                entries.push_back(KeyIndexEntry{node_text(storage, head), child_index});
+                entries.push_back(KeyIndexEntry{child.first_child, child_index});
         }
         child_index = child.next_sibling;
     }
 
-    std::stable_sort(entries.begin(), entries.end(), [](const KeyIndexEntry& a, const KeyIndexEntry& b) {
-        return a.key < b.key;
+    std::stable_sort(entries.begin(), entries.end(), [&storage](const KeyIndexEntry& a, const KeyIndexEntry& b) {
+        return node_text(storage, storage.nodes[a.head]) < node_text(storage, storage.nodes[b.head]);
     });
     return entries;
 }
@@ -113,10 +113,10 @@ std::uint32_t find_child_index(const ParseStorage& storage,
     auto entry = std::lower_bound(entries.begin(),
                                   entries.end(),
                                   searched_head,
-                                  [](const KeyIndexEntry& item, std::string_view key) {
-                                      return item.key < key;
+                                  [&storage](const KeyIndexEntry& item, std::string_view key) {
+                                      return node_text(storage, storage.nodes[item.head]) < key;
                                   });
-    if (entry != entries.end() && entry->key == searched_head)
+    if (entry != entries.end() && node_text(storage, storage.nodes[entry->head]) == searched_head)
         return entry->child;
 
     return invalid_node;

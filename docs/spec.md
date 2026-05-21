@@ -16,12 +16,13 @@ It should stay small:
 
 ## Responsibilities
 
-- Tokenize symbols, strings, integers, floats, and lists.
+- Tokenize atoms, strings, and list delimiters.
 - Parse one or more root expressions from a string.
-- Preserve parsed value types.
+- Preserve syntax-level value types: list, atom, string.
 - Report parse diagnostics with line and column.
 - Quote strings for writers in dependent libraries.
-- Provide small helper functions for common `(key value)` extraction.
+- Provide small helper functions for interpreting atoms as ints/floats and for
+  common `(key value)` extraction.
 
 ## Non-Responsibilities
 

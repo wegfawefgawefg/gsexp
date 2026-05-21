@@ -28,55 +28,6 @@ void add_diagnostic(std::vector<Diagnostic>* diagnostics,
     diagnostics->push_back(Diagnostic{severity, std::move(message), line, column});
 }
 
-std::optional<int> float_to_int(double value) {
-    if (!std::isfinite(value))
-        return std::nullopt;
-    if (value < static_cast<double>(std::numeric_limits<int>::min()) ||
-        value > static_cast<double>(std::numeric_limits<int>::max())) {
-        return std::nullopt;
-    }
-    return static_cast<int>(value);
-}
-
-bool can_start_number(std::string_view text) {
-    if (text.empty())
-        return false;
-
-    char c = text.front();
-    return std::isdigit(static_cast<unsigned char>(c)) || c == '+' || c == '-' || c == '.';
-}
-
-Value atom_value(std::string text) {
-    Value atom;
-    if (!can_start_number(text)) {
-        atom.type = ValueType::Symbol;
-        atom.text = std::move(text);
-        return atom;
-    }
-
-    if (looks_like_integer(text)) {
-        try {
-            atom.type = ValueType::Int;
-            atom.int_value = std::stoll(text);
-        } catch (...) {
-            atom.type = ValueType::Symbol;
-            atom.text = std::move(text);
-        }
-    } else if (looks_like_float(text)) {
-        try {
-            atom.type = ValueType::Float;
-            atom.float_value = std::stod(text);
-        } catch (...) {
-            atom.type = ValueType::Symbol;
-            atom.text = std::move(text);
-        }
-    } else {
-        atom.type = ValueType::Symbol;
-        atom.text = std::move(text);
-    }
-    return atom;
-}
-
 class Parser {
   public:
     explicit Parser(std::string_view source) : text(source) {}
@@ -229,7 +180,9 @@ class Parser {
             advance();
         }
 
-        out = atom_value(std::string(text.substr(start, index - start)));
+        out = Value{};
+        out.type = ValueType::Atom;
+        out.text = std::string(text.substr(start, index - start));
     }
 };
 
@@ -404,8 +357,12 @@ ParseResult parse(std::string_view text) {
     return parser.parse();
 }
 
+bool is_atom(const Value& value, std::string_view atom) {
+    return value.type == ValueType::Atom && value.text == atom;
+}
+
 bool is_symbol(const Value& value, std::string_view symbol) {
-    return value.type == ValueType::Symbol && value.text == symbol;
+    return is_atom(value, symbol);
 }
 
 const Value* find_child(const Value& list, std::string_view symbol) {
@@ -416,7 +373,7 @@ const Value* find_child(const Value& list, std::string_view symbol) {
         const Value& child = list.list[index];
         if (child.type != ValueType::List || child.list.empty())
             continue;
-        if (is_symbol(child.list.front(), symbol))
+        if (is_atom(child.list.front(), symbol))
             return &child;
     }
 
@@ -429,18 +386,7 @@ std::optional<int> extract_int(const Value& list, std::string_view symbol) {
         return std::nullopt;
 
     const Value& value = node->list[1];
-    if (value.type == ValueType::Int) {
-        if (value.int_value < std::numeric_limits<int>::min() ||
-            value.int_value > std::numeric_limits<int>::max()) {
-            return std::nullopt;
-        }
-        return static_cast<int>(value.int_value);
-    }
-
-    if (value.type == ValueType::Float)
-        return float_to_int(value.float_value);
-
-    if (value.type == ValueType::Symbol && looks_like_integer(value.text)) {
+    if (value.type == ValueType::Atom && looks_like_integer(value.text)) {
         try {
             return std::stoi(value.text);
         } catch (...) {
@@ -457,13 +403,7 @@ std::optional<float> extract_float(const Value& list, std::string_view symbol) {
         return std::nullopt;
 
     const Value& value = node->list[1];
-    if (value.type == ValueType::Float)
-        return static_cast<float>(value.float_value);
-
-    if (value.type == ValueType::Int)
-        return static_cast<float>(value.int_value);
-
-    if (value.type == ValueType::Symbol &&
+    if (value.type == ValueType::Atom &&
         (looks_like_float(value.text) || looks_like_integer(value.text))) {
         try {
             return std::stof(value.text);
@@ -481,7 +421,7 @@ std::optional<std::string> extract_string(const Value& list, std::string_view sy
         return std::nullopt;
 
     const Value& value = node->list[1];
-    if (value.type == ValueType::String || value.type == ValueType::Symbol)
+    if (value.type == ValueType::String || value.type == ValueType::Atom)
         return value.text;
 
     return std::nullopt;

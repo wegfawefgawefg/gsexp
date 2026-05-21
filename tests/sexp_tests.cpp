@@ -24,6 +24,9 @@ void test_parse_and_extract() {
     require(result.values.size() == 1, "parse one root");
 
     const gsexp::Value& root = result.values.front();
+    const gsexp::Value* width_node = gsexp::find_child(root, "width");
+    require(width_node != nullptr, "width node exists");
+    require(width_node->list[1].type == gsexp::ValueType::Atom, "numeric atom stays atom");
     require(gsexp::extract_string(root, "name") == "demo", "extract string");
     require(gsexp::extract_int(root, "width") == 1280, "extract int");
     require(gsexp::extract_float(root, "scale").has_value(), "extract float");
@@ -34,19 +37,19 @@ void test_int_range() {
     root.type = gsexp::ValueType::List;
 
     gsexp::Value key;
-    key.type = gsexp::ValueType::Symbol;
+    key.type = gsexp::ValueType::Atom;
     key.text = "value";
 
     gsexp::Value value;
-    value.type = gsexp::ValueType::Float;
-    value.float_value = static_cast<double>(std::numeric_limits<int>::max()) + 1024.0;
+    value.type = gsexp::ValueType::Atom;
+    value.text = std::to_string(std::numeric_limits<int>::max()) + "000";
 
     gsexp::Value child;
     child.type = gsexp::ValueType::List;
     child.list.push_back(key);
     child.list.push_back(value);
     gsexp::Value root_symbol;
-    root_symbol.type = gsexp::ValueType::Symbol;
+    root_symbol.type = gsexp::ValueType::Atom;
     root_symbol.text = "root";
 
     root.list.push_back(root_symbol);

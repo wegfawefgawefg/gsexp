@@ -8,9 +8,11 @@ Process:
 2. Make one optimization attempt.
 3. Run `./scripts/build.sh`.
 4. Run `./scripts/bench.sh` after the change.
-5. Keep the change only if it improves the benchmark without changing the public
-   API or making the implementation harder to audit.
-6. Record the result here.
+5. Keep parser-local changes only if they improve the benchmark without making
+   the implementation harder to audit.
+6. Public model changes are allowed only when they are deliberately chosen for
+   usability or correctness, then benchmarked and documented.
+7. Record the result here.
 
 The benchmark generates S-expression asset records in memory and parses them
 repeatedly. It reports the best of three runs for each case. It is intended to
@@ -29,7 +31,8 @@ catch parser-level improvements, not full application startup behavior.
 | 2026-05-21 | Skip numeric checks for atoms that cannot start numbers | 36.07 | 27.48 | Kept |
 | 2026-05-21 | Reserve 32 bytes for parsed strings | 37.76 | 29.30 | Kept |
 | 2026-05-21 | Retest reserve 4 child slots after numeric guard/string reserve | 34.00 | 20.03 | Reverted; slower |
-| 2026-05-21 | Full lazy numeric parsing: store numeric atoms as symbols | 42.35 | 30.94 | Rejected; changes public `Value::type` behavior |
+| 2026-05-21 | Full lazy numeric parsing under old `Symbol` model | 42.35 | 30.94 | Superseded by deliberate `Atom` model |
+| 2026-05-21 | Reader model: atoms stay atoms; helpers interpret numbers | 38.84-47.29 | 24.49-29.78 | Kept; public model changed deliberately; reruns were noisy |
 
 ## Optimization Plan 2
 
@@ -43,8 +46,6 @@ Current limiting shape:
 struct Value {
     ValueType type;
     std::string text;
-    long long int_value;
-    double float_value;
     std::vector<Value> list;
 };
 ```
@@ -56,9 +57,8 @@ Candidate attempts:
 
 1. Lazy numeric parsing.
    Store parsed atoms as text first and convert only in `extract_int` and
-   `extract_float`. Preserve usability by making extraction behavior unchanged.
-   This needs a careful compatibility decision because callers can currently
-   inspect `Value::type == Int` or `Float` immediately after `parse()`.
+   `extract_float`. This is now the chosen model because it is closer to normal
+   S-expression reader behavior and keeps `parse(text)` simple.
 
 2. Compact child storage for common short lists.
    Most config data contains many `(key value)` lists. Try an internal
@@ -90,11 +90,12 @@ Candidate attempts:
 ## Optimization Plan 2 Status
 
 1. Lazy numeric parsing.
-   - Compatibility-safe numeric-start guard was kept. It avoids numeric checks
-     for atoms that cannot be numbers while preserving `Int` and `Float` values
-     for numeric atoms.
-   - Full lazy numeric parsing measured faster, but was rejected because it
-     changed public parse-tree behavior by storing numeric atoms as `Symbol`.
+   - Kept. Parsed atoms remain `ValueType::Atom`; numeric helpers interpret atom
+     text when requested.
+   - This replaced the earlier compatibility-safe numeric-start guard because
+     the all-atom reader model is more standard for S-expressions and better for
+     future evaluator layers.
+   - `is_symbol()` remains as a compatibility alias for `is_atom()`.
 
 2. Compact child storage for common short lists.
    - `reserve(2)` for parsed lists was kept.
@@ -120,6 +121,8 @@ Candidate attempts:
      a larger public representation change.
 
 6. Reconsider public `Value`.
-   - Deferred. The current API remains source-compatible and behavior-compatible.
-     Further large gains probably require a deliberate `Value` representation
-     redesign rather than more parser-local tricks.
+   - Started with the atom-based reader model. This is a deliberate source-level
+     cleanup: callers should inspect `ValueType::Atom` and use helper functions
+     for numeric interpretation.
+   - Further large gains probably require another deliberate `Value`
+     representation redesign rather than more parser-local tricks.

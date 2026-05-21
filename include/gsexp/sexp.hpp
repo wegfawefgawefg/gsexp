@@ -16,10 +16,8 @@ enum class TokenType {
 
 enum class ValueType {
     List,
-    Symbol,
     String,
-    Int,
-    Float,
+    Atom,
 };
 
 enum class DiagnosticSeverity {
@@ -44,8 +42,6 @@ struct Token {
 struct Value {
     ValueType type = ValueType::List;
     std::string text;
-    long long int_value = 0;
-    double float_value = 0.0;
     std::vector<Value> list;
 };
 
@@ -61,6 +57,7 @@ bool looks_like_float(std::string_view text);
 ParseResult parse(std::string_view text);
 std::vector<Token> tokenize(std::string_view text, std::vector<Diagnostic>* diagnostics = nullptr);
 
+bool is_atom(const Value& value, std::string_view atom);
 bool is_symbol(const Value& value, std::string_view symbol);
 const Value* find_child(const Value& list, std::string_view symbol);
 

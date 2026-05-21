@@ -7,10 +7,10 @@
 `gsexp` is a small C++20 S-expression parser/writer helper. It is meant for
 simple config and data files used by vendored game libraries.
 
-It parses symbols, strings, integers, floats, and lists into plain structs with
-line/column diagnostics. It is not a Lisp interpreter. It has no evaluator,
-macros, schema system, file search policy, or dependencies outside the C++
-standard library.
+It parses atoms, strings, and lists into plain structs with line/column
+diagnostics. It is not a Lisp interpreter. It has no evaluator, macros, schema
+system, file search policy, or dependencies outside the C++ standard library.
+Numeric atoms are interpreted by helper functions when callers ask for numbers.
 
 ## Screenshot
 

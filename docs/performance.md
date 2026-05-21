@@ -463,7 +463,15 @@ Current pending Plan 11 queue:
 7. Replace sibling links only if the replacement is real.
    The side child-span arena was rejected because it layered a second child
    representation on top of sibling links. A future child-span attempt should
-   replace sibling traversal during construction or be skipped.
+   replace sibling traversal during construction or be skipped. Latest
+   benchmark-only probes show why: on code-shaped data, public traversal reached
+   38.01M visits/s, internal sibling traversal reached 254.42M visits/s, and
+   temporary child-span traversal reached 225.12M visits/s. On asset-shaped
+   data, public traversal reached 45.25M visits/s, internal sibling traversal
+   reached 144.72M visits/s, and temporary child-span traversal reached
+   136.00M visits/s. Side spans close most of the public-wrapper gap, but they
+   still trail direct internal sibling traversal and add about 1.94-4.08 MB of
+   temporary storage.
 
 8. Consider a parse-time tape or one-pass retained builder.
    A tape/event builder is allowed if it removes finalization cost or enables a
@@ -488,7 +496,9 @@ Work order:
    should identify its direct children with `first_child_slot + child_count`,
    where `child_indices[first_child_slot + i]` gives the child node index.
    Keep `Node::children()`, `Node::child_at()`, and `FormView` behavior stable.
-   Measure parse cost, retained memory, child iteration, and lookup.
+   Measure parse cost, retained memory, child iteration, and lookup. Do not
+   keep a side child-span arena beside `next_sibling`; side spans are now
+   benchmark tools, not the target retained representation.
 
 2. Node layout after child spans.
    Once `next_sibling` is no longer needed, repack `NodeData`. Target hot fields:
@@ -500,7 +510,9 @@ Work order:
    Try the simplest child-span construction first: keep a parse-time stack of
    child slots or temporary direct-child vectors, then finalize each list into
    the child-index arena. Reject designs that make parser control flow hard to
-   audit unless they produce large wins.
+   audit unless they produce large wins. A kept version should build final child
+   ranges during parsing and remove retained sibling traversal, or otherwise
+   prove that its extra child-index memory buys enough lookup/traversal speed.
 
 4. Form head metadata.
    Store each list form's head node or head metadata directly when practical.
@@ -870,6 +882,11 @@ struct NodeData {
 ```cpp
 std::vector<uint32_t> child_indices;
 ```
+
+This arena must be counted against retained memory. A production child-span
+representation should offset that cost by removing `next_sibling` from retained
+nodes or by producing enough traversal and lookup speed to justify the extra
+storage.
 
 3. Symbol table:
 

@@ -213,6 +213,162 @@ Plan 10 optimization attempt results:
 | Internal `FormView::get_*` value-child fast path | Kept. Current run reached 16.31M queries/s for common asset lookup and 4.94M queries/s for many-key lookup, both above the Plan 9 recorded results. |
 | Make `get_string_view` the benchmark default | Kept. The asset lookup benchmark now measures borrowed string access through `FormView`, which is the intended asset-loading style when `ParseResult` remains alive. |
 
+## Optimization Plan 11
+
+Goal: stop treating syntax simplicity as enough. `gsexp` has simpler syntax
+than JSON, but its retained tree is currently heavier than yyjson's DOM layout.
+Plan 11 is allowed to heavily change internals while keeping the public
+`Node`/`FormView` API stable. The target is a representation that is faster to
+walk, faster to query, and closer to contiguous memory.
+
+Current gap after Plan 10:
+
+1. `assets_10k` parse is still about 3.03x behind yyjson on the latest run.
+2. `asset_database_5k` parse is still about 3.05x behind yyjson.
+3. `assets_10k` lookup improved, but is still about 6.18x behind yyjson.
+4. `many_keys_last` lookup improved, but is still about 2.67x behind yyjson.
+5. The public API is now clean enough that internal representation churn should
+   not force another user-facing rewrite.
+
+Work order:
+
+1. Contiguous child-span arena.
+   Replace sibling-chain traversal with a child-index arena. Each list node
+   should identify its direct children with `first_child_slot + child_count`,
+   where `child_indices[first_child_slot + i]` gives the child node index.
+   Keep `Node::children()`, `Node::child_at()`, and `FormView` behavior stable.
+   Measure parse cost, retained memory, child iteration, and lookup.
+
+2. Node layout after child spans.
+   Once `next_sibling` is no longer needed, repack `NodeData`. Target hot fields:
+   type, text storage, text offset/size, first child slot, child count, and any
+   head/symbol metadata proven useful. Keep fields debugger-readable; avoid
+   clever bit packing until plain packing is measured.
+
+3. Parser construction strategy.
+   Try the simplest child-span construction first: keep a parse-time stack of
+   child slots or temporary direct-child vectors, then finalize each list into
+   the child-index arena. Reject designs that make parser control flow hard to
+   audit unless they produce large wins.
+
+4. Form head metadata.
+   Store each list form's head node or head metadata directly when practical.
+   `FormView::find()` should not have to call `child.head()` repeatedly if the
+   child form's head is already known.
+
+5. Symbol/head interning.
+   Intern repeated atom heads such as `id`, `path`, `x`, and operators in
+   code-like input. Start with form heads only, not arbitrary string values.
+   Lookup should compare symbol IDs before falling back to text. Measure memory
+   impact and parse cost.
+
+6. Caller key resolution.
+   Decide how `FormView::get_int("id")` resolves `"id"` to the interned symbol.
+   Try parse-storage lookup by string view first. Do not add a complex public
+   symbol API unless repeated caller-side key resolution becomes a proven
+   bottleneck.
+
+7. Flat arena-backed form indexes.
+   Replace vector-of-vector child indexes with flat arrays if child spans and
+   symbol IDs make that useful:
+   `indexed_lists[]`, `index_entries[]`, and ranges into `index_entries`.
+   Keep indexes lazy unless eager indexing is proven better.
+
+8. Direct small-form lookup.
+   For small forms, compare direct span scan against lazy index construction.
+   The policy should stay simple: direct below a threshold, indexed above it,
+   or no index if symbol-ID scans are already fast.
+
+9. Numeric parse specialization.
+   Try small custom parsers for common integer and simple decimal float shapes.
+   Keep exact rejection behavior covered by tests. Reject if `from_chars` is
+   still faster or if correctness gets harder to reason about.
+
+10. Scanner success-path rewrite.
+    Tighten whitespace/comment/atom/string scanning after the representation
+    change. Separate syntax scanning from tree construction enough that hot
+    loops stay simple. Preserve diagnostics.
+
+11. SIMD integration.
+    Integrate the existing SSE2 delimiter/string scan proof only after scalar
+    representation changes settle. SIMD remains optional with scalar fallback.
+    Benchmark parse cases and compile portability.
+
+12. Allocation discipline.
+    Reduce growth churn across nodes, child indices, decoded text, symbol table,
+    and lazy indexes. Prefer flat arenas over per-list heap allocations.
+
+13. Real workload fixtures.
+    Add larger and more realistic generated asset database cases, and later
+    real project fixtures when available. Keep synthetic yyjson comparisons,
+    but do not optimize solely for synthetic records.
+
+14. API audit after internals settle.
+    Keep `Node` and `FormView` public behavior stable. Only add public API if
+    benchmarks prove users need explicit symbol handles or caller-side compiled
+    keys.
+
+Candidate representation sketches:
+
+1. Child-span node:
+
+```cpp
+struct NodeData {
+    uint32_t text_offset;
+    uint32_t text_size;
+    uint32_t first_child_slot;
+    uint32_t child_count;
+    uint32_t head_symbol;
+    ValueType type;
+    TextStorage text_storage;
+};
+```
+
+2. Child arena:
+
+```cpp
+std::vector<uint32_t> child_indices;
+```
+
+3. Symbol table:
+
+```cpp
+struct Symbol {
+    uint32_t text_offset;
+    uint32_t text_size;
+    uint32_t hash;
+};
+```
+
+Acceptance rules:
+
+1. Each major representation attempt gets before/after benchmark output and a
+   keep/reject note.
+2. `gsexp ./scripts/build.sh` passes.
+3. `gsexp ./scripts/bench.sh` passes with yyjson enabled.
+4. Benchmark build with `GSEXP_BENCHMARK_YYJSON=OFF` still works.
+5. `glayout ./scripts/build.sh` passes after any public or vendoring-impacting
+   change.
+6. Existing public `Node` and `FormView` behavior stays stable unless a
+   deliberate API change is documented and `glayout` is updated.
+7. Retained memory is documented alongside speed. Faster code that doubles
+   retained memory needs a clear reason.
+8. Numeric changes must add tests before changing behavior.
+9. SIMD changes must compile out cleanly on non-x86 or non-SIMD builds.
+10. Keep files inside the size guideline by splitting representation, form
+    lookup, symbol table, and parser construction into cohesive files.
+
+Rejected-by-default unless evidence changes:
+
+1. Reintroducing public compatibility wrappers for old extraction helpers.
+2. Interning every string value by default.
+   Start with form heads and repeated atoms.
+3. Eagerly building full lookup indexes for every form during parse.
+4. Hard-required SIMD.
+5. Dense bit-packed node formats that are painful to debug.
+6. Optimizing for yyjson validation-only numbers instead of retained tree plus
+   lookup workloads.
+
 ## Optimization Plan 10
 
 Goal: make the public query API cleaner while giving the implementation a

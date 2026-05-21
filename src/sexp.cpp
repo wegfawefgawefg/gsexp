@@ -16,7 +16,7 @@ namespace {
 constexpr std::size_t reserve_sample_bytes = 16 * 1024;
 constexpr std::size_t reserve_min_nodes = 64;
 constexpr std::size_t reserve_slack_nodes = 16;
-constexpr double reserve_growth_slack = 1.08;
+constexpr double reserve_growth_slack = 1.02;
 
 bool is_space(char c) {
     return c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == '\v' || c == '\f';

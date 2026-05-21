@@ -3,6 +3,7 @@
 #include "bench_data.hpp"
 #include "internal_query_bench.hpp"
 #include "query_bench.hpp"
+#include "query_transition_bench.hpp"
 #include "scan_probe.hpp"
 #include "yyjson_bench.hpp"
 
@@ -320,6 +321,11 @@ int main() {
     run_parse_case("code_forms_2k", data::make_code_data(2000), 50);
     run_parse_case("wide_10k", wide_10k, 50);
     run_query_case("query_assets_10k", assets_10k, 10000, 100, QueryMode::Common);
+    query_transition_bench::run_asset_common_transition_case("query_assets_10k_cold_once",
+                                                             "query_assets_10k_warm_repeated",
+                                                             assets_10k,
+                                                             10000,
+                                                             100);
     run_internal_asset_query_case("query_internal_assets_10k", assets_10k, 10000, 100);
     run_internal_ordered_asset_query_case("query_internal_ordered_assets_10k", assets_10k, 10000, 100);
     run_query_case("query_first_10k", assets_10k, 10000, 500, QueryMode::First);
@@ -345,12 +351,15 @@ int main() {
                           200,
                           "key_7",
                           7);
-    run_many_key_get_case("query_many_keys_16_last",
-                          data::make_many_keys_data(5000, 16),
-                          5000,
-                          200,
-                          "key_15",
-                          15);
+    std::string many_keys_16_data = data::make_many_keys_data(5000, 16);
+    run_many_key_get_case("query_many_keys_16_last", many_keys_16_data, 5000, 200, "key_15", 15);
+    query_transition_bench::run_many_key_transition_case("query_many_keys_16_cold_once",
+                                                         "query_many_keys_16_warm_repeated",
+                                                         many_keys_16_data,
+                                                         5000,
+                                                         200,
+                                                         "key_15",
+                                                         15);
     std::string many_keys_data = data::make_many_keys_data(5000, 24);
     run_many_key_get_case("query_many_keys_24_last", many_keys_data, 5000, 200, "key_23", 23);
     run_many_key_get_case("query_many_keys_48_last",

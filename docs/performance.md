@@ -27,61 +27,65 @@ Latest verified Plan 11 results on this machine:
 
 | Case | Result |
 | --- | ---: |
-| assets_10k | 257.58 MiB/s |
-| assets_50k | 229.19 MiB/s |
-| asset_database_5k | 318.92 MiB/s |
-| asset_database_5k_owned | 325.98 MiB/s |
-| asset_database_20k | 303.95 MiB/s |
-| asset_database_20k_owned | 301.14 MiB/s |
-| asset_database_5k_file_read | 382.93 MiB/s |
-| asset_database_5k_file_owned | 179.13 MiB/s |
-| small_files_1k | 214.27 MiB/s |
-| strings_plain_5k | 1132.27 MiB/s |
-| strings_escaped_5k | 747.18 MiB/s |
-| deep_1k | 238.94 MiB/s |
-| code_forms_2k | 261.77 MiB/s |
-| wide_10k | 367.75 MiB/s |
-| query_assets_10k | 24.34M queries/s |
-| query_internal_assets_10k | 38.91M queries/s |
-| query_internal_ordered_assets_10k | 55.83M queries/s |
-| query_first_10k | 15.53M queries/s |
-| query_last_10k | 11.35M queries/s |
-| query_missing_10k | 13.77M queries/s |
-| query_string_view_10k | 16.77M queries/s |
-| query_text_only_10k | 46.34M queries/s |
-| query_symbol_compare_10k | 44.29M queries/s |
-| query_asset_database_5k | 22.57M queries/s |
-| query_internal_asset_database_5k | 44.78M queries/s |
-| query_asset_database_20k | 21.17M queries/s |
-| query_internal_asset_database_20k | 33.77M queries/s |
-| query_many_keys_8_last | 10.91M queries/s |
-| query_many_keys_16_last | 9.71M queries/s |
-| query_many_keys_24_last | 8.38M queries/s |
-| query_many_keys_48_last | 3.56M queries/s |
-| query_many_keys_last | 7.30M queries/s |
-| query_find_many_keys_last | 8.80M queries/s |
-| query_child_at_many_keys_last | 7.86M queries/s |
-| query_find_arg_many_keys_last | 7.70M queries/s |
-| query_nested_find_arg_5k | 24.19M queries/s |
-| query_internal_nested_find_arg_5k | 88.30M queries/s |
+| assets_10k | 254.56 MiB/s |
+| assets_50k | 216.99 MiB/s |
+| asset_database_5k | 305.07 MiB/s |
+| asset_database_5k_owned | 320.04 MiB/s |
+| asset_database_20k | 311.49 MiB/s |
+| asset_database_20k_owned | 296.37 MiB/s |
+| asset_database_5k_file_read | 376.44 MiB/s |
+| asset_database_5k_file_owned | 168.97 MiB/s |
+| small_files_1k | 215.53 MiB/s |
+| strings_plain_5k | 1073.81 MiB/s |
+| strings_escaped_5k | 714.02 MiB/s |
+| deep_1k | 232.47 MiB/s |
+| code_forms_2k | 270.15 MiB/s |
+| wide_10k | 368.09 MiB/s |
+| query_assets_10k | 24.41M queries/s |
+| query_assets_10k_cold_once | 16.70M queries/s |
+| query_assets_10k_warm_repeated | 20.78M queries/s |
+| query_internal_assets_10k | 36.90M queries/s |
+| query_internal_ordered_assets_10k | 49.05M queries/s |
+| query_first_10k | 15.73M queries/s |
+| query_last_10k | 10.67M queries/s |
+| query_missing_10k | 13.35M queries/s |
+| query_string_view_10k | 17.01M queries/s |
+| query_text_only_10k | 46.92M queries/s |
+| query_symbol_compare_10k | 43.44M queries/s |
+| query_asset_database_5k | 23.55M queries/s |
+| query_internal_asset_database_5k | 36.92M queries/s |
+| query_asset_database_20k | 21.91M queries/s |
+| query_internal_asset_database_20k | 34.98M queries/s |
+| query_many_keys_8_last | 10.73M queries/s |
+| query_many_keys_16_last | 9.63M queries/s |
+| query_many_keys_16_cold_once | 1.39M queries/s |
+| query_many_keys_16_warm_repeated | 8.63M queries/s |
+| query_many_keys_24_last | 7.39M queries/s |
+| query_many_keys_48_last | 4.21M queries/s |
+| query_many_keys_last | 7.58M queries/s |
+| query_find_many_keys_last | 7.68M queries/s |
+| query_child_at_many_keys_last | 7.41M queries/s |
+| query_find_arg_many_keys_last | 7.65M queries/s |
+| query_nested_find_arg_5k | 24.47M queries/s |
+| query_internal_nested_find_arg_5k | 75.01M queries/s |
 
 Latest yyjson comparison results:
 
 | Equivalent case | gsexp | yyjson | yyjson/gsexp |
 | --- | ---: | ---: | ---: |
-| assets_10k parse | 257.58 MiB/s | 668.21 MiB/s | 2.59x |
-| assets_50k parse | 229.19 MiB/s | 695.75 MiB/s | 3.04x |
-| asset_database_5k parse | 318.92 MiB/s | 757.36 MiB/s | 2.37x |
-| asset_database_20k parse | 303.95 MiB/s | 762.21 MiB/s | 2.51x |
-| small_files_1k parse | 214.27 MiB/s | 570.06 MiB/s | 2.66x |
-| strings_plain_5k parse | 1132.27 MiB/s | 1464.34 MiB/s | 1.29x |
-| strings_escaped_5k parse | 747.18 MiB/s | 1314.06 MiB/s | 1.76x |
-| code_forms_2k parse | 261.77 MiB/s | 700.98 MiB/s | 2.68x |
-| wide_10k parse | 367.75 MiB/s | 850.35 MiB/s | 2.31x |
-| assets_10k lookup | 24.34M queries/s | 126.06M queries/s | 5.18x |
-| asset_database_5k lookup | 22.57M queries/s | 83.31M queries/s | 3.69x |
-| asset_database_20k lookup | 21.17M queries/s | 77.52M queries/s | 3.66x |
-| many_keys_last lookup | 7.38M queries/s | 15.15M queries/s | 2.05x |
+| assets_10k parse | 254.56 MiB/s | 675.40 MiB/s | 2.65x |
+| assets_50k parse | 216.99 MiB/s | 645.01 MiB/s | 2.97x |
+| asset_database_5k parse | 305.07 MiB/s | 798.06 MiB/s | 2.62x |
+| asset_database_20k parse | 311.49 MiB/s | 767.05 MiB/s | 2.46x |
+| small_files_1k parse | 215.53 MiB/s | 577.29 MiB/s | 2.68x |
+| strings_plain_5k parse | 1073.81 MiB/s | 1318.38 MiB/s | 1.23x |
+| strings_escaped_5k parse | 714.02 MiB/s | 1168.21 MiB/s | 1.64x |
+| code_forms_2k parse | 270.15 MiB/s | 640.65 MiB/s | 2.37x |
+| wide_10k parse | 368.09 MiB/s | 831.31 MiB/s | 2.26x |
+| assets_10k lookup | 24.41M queries/s | 53.03M queries/s | 2.17x |
+| asset_database_5k lookup | 23.55M queries/s | 55.05M queries/s | 2.34x |
+| asset_database_20k lookup | 21.91M queries/s | 50.18M queries/s | 2.29x |
+| many_keys_last lookup | 7.58M queries/s | 11.61M queries/s | 1.53x |
 
 These are equivalent data shapes, not byte-identical files. The JSON fixtures
 are generated beside the S-expression fixtures and measured by each format's
@@ -404,6 +408,7 @@ Attempt results so far:
 | Variable-width many-key lookup benchmarks | Kept. The benchmark suite now measures `get_int()` of the last key for 8, 16, 24, and 48-key records, making lazy-index threshold changes easier to evaluate. First measured run: `query_many_keys_8_last` reached 10.91M q/s with no child indexes, `query_many_keys_16_last` reached 9.28M q/s while building 5k indexes and 80k entries, `query_many_keys_24_last` reached 7.02M q/s with 120k entries, and `query_many_keys_48_last` reached 4.14M q/s with 240k entries. This is measurement support, not a parser behavior change. |
 | Raise lazy child-index threshold to 24 | Rejected. The variable-width benchmark suggested checking whether 16-key forms should stay direct to avoid index memory. Raising `indexed_child_threshold` from 16 to 24 did remove the 16-key child indexes and lowered that case's retained memory from about 8.21 MB to 6.65 MB, but lookup throughput fell too much: `query_many_keys_16_last` dropped from 9.28M to 7.20M q/s, `query_many_keys_24_last` stayed below the recorded 7.02M at 6.86M q/s, and `query_many_keys_48_last` fell from 4.14M to 3.80M q/s. The threshold was restored to 16. |
 | Hybrid linear lookup for small child indexes | Kept. Indexed forms with 16 or fewer indexed entries now scan the sorted cache linearly and larger indexed forms keep the binary-search path. First measured run: `query_many_keys_16_last` improved from 9.28M to 9.71M q/s, `query_find_many_keys_last` from 8.12M to 8.80M q/s, `query_child_at_many_keys_last` from 7.54M to 7.86M q/s, and `query_find_arg_many_keys_last` from 7.35M to 7.70M q/s. `query_many_keys_48_last` fell from 4.14M to 3.56M q/s even though that case still uses binary search, so large indexed forms remain a watch item for repeat runs. |
+| First-vs-repeated lookup transition benchmarks | Kept. The benchmark suite now reports cold first-pass and warmed repeated lookup rows for common asset queries and 16-key indexed forms. First measured run: `query_assets_10k_cold_once` reached 16.70M q/s and `query_assets_10k_warm_repeated` reached 20.78M q/s, while the normal blended `query_assets_10k` row reached 24.41M q/s. The wide-index warmup cost is much clearer: `query_many_keys_16_cold_once` reached 1.39M q/s while `query_many_keys_16_warm_repeated` reached 8.63M q/s. This is measurement support for future stateful lookup work, not a public API change. |
 
 Current pending Plan 11 queue:
 

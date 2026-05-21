@@ -1,6 +1,6 @@
 #include "gsexp/sexp.hpp"
 
-#include <charconv>
+#include <utility>
 
 namespace gsexp {
 namespace {
@@ -50,10 +50,10 @@ class Parser {
             if (index >= text.size())
                 break;
 
-            Value value;
-            if (!parse_value(value, result.diagnostics))
+            std::uint32_t value = invalid_node;
+            if (!parse_value(invalid_node, value, result.diagnostics))
                 return result;
-            result.values.push_back(std::move(value));
+            result.roots.push_back(value);
         }
 
         result.ok = true;
@@ -66,6 +66,24 @@ class Parser {
     std::size_t index = 0;
     int line = 1;
     int column = 1;
+
+    std::uint32_t add_node(ValueType type, std::string_view node_text, std::uint32_t parent) {
+        std::uint32_t node_index = static_cast<std::uint32_t>(storage->nodes.size());
+        storage->nodes.push_back(NodeData{type, node_text, parent});
+
+        if (parent != invalid_node) {
+            NodeData& parent_node = storage->nodes[parent];
+            if (parent_node.first_child == invalid_node) {
+                parent_node.first_child = node_index;
+            } else {
+                storage->nodes[parent_node.last_child].next_sibling = node_index;
+            }
+            parent_node.last_child = node_index;
+            ++parent_node.child_count;
+        }
+
+        return node_index;
+    }
 
     void advance() {
         advance_position(text[index], line, column);
@@ -98,7 +116,9 @@ class Parser {
         }
     }
 
-    bool parse_value(Value& out, std::vector<Diagnostic>& diagnostics) {
+    bool parse_value(std::uint32_t parent,
+                     std::uint32_t& out,
+                     std::vector<Diagnostic>& diagnostics) {
         if (index >= text.size()) {
             add_error(diagnostics, "expected value", line, column);
             return false;
@@ -106,27 +126,26 @@ class Parser {
 
         char c = text[index];
         if (c == '(')
-            return parse_list(out, diagnostics);
+            return parse_list(parent, out, diagnostics);
         if (c == ')') {
             add_error(diagnostics, "unexpected ')'", line, column);
             return false;
         }
         if (c == '"')
-            return parse_string(out, diagnostics);
+            return parse_string(parent, out, diagnostics);
 
-        parse_atom(out);
+        parse_atom(parent, out);
         return true;
     }
 
-    bool parse_list(Value& out, std::vector<Diagnostic>& diagnostics) {
+    bool parse_list(std::uint32_t parent,
+                    std::uint32_t& out,
+                    std::vector<Diagnostic>& diagnostics) {
         int start_line = line;
         int start_column = column;
         advance();
 
-        out.type = ValueType::List;
-        out.text = {};
-        out.list.clear();
-        out.list.reserve(2);
+        out = add_node(ValueType::List, {}, parent);
 
         while (true) {
             skip_space_and_comments();
@@ -139,14 +158,15 @@ class Parser {
                 return true;
             }
 
-            Value child;
-            if (!parse_value(child, diagnostics))
+            std::uint32_t child = invalid_node;
+            if (!parse_value(out, child, diagnostics))
                 return false;
-            out.list.push_back(std::move(child));
         }
     }
 
-    bool parse_string(Value& out, std::vector<Diagnostic>& diagnostics) {
+    bool parse_string(std::uint32_t parent,
+                      std::uint32_t& out,
+                      std::vector<Diagnostic>& diagnostics) {
         int start_line = line;
         int start_column = column;
         advance();
@@ -156,9 +176,7 @@ class Parser {
         while (scan < text.size()) {
             char ch = text[scan];
             if (ch == '"') {
-                out.type = ValueType::String;
-                out.text = text.substr(content_start, scan - content_start);
-                out.list.clear();
+                out = add_node(ValueType::String, text.substr(content_start, scan - content_start), parent);
                 column += static_cast<int>(scan - content_start) + 1;
                 index = scan + 1;
                 return true;
@@ -187,9 +205,7 @@ class Parser {
                 }
             } else if (ch == '"') {
                 storage->decoded_strings.push_back(std::move(buffer));
-                out.type = ValueType::String;
-                out.text = storage->decoded_strings.back();
-                out.list.clear();
+                out = add_node(ValueType::String, storage->decoded_strings.back(), parent);
                 return true;
             } else {
                 buffer.push_back(ch);
@@ -200,7 +216,7 @@ class Parser {
         return false;
     }
 
-    void parse_atom(Value& out) {
+    void parse_atom(std::uint32_t parent, std::uint32_t& out) {
         std::size_t start = index;
         while (index < text.size()) {
             char ch = text[index];
@@ -210,9 +226,7 @@ class Parser {
         }
 
         column += static_cast<int>(index - start);
-        out.type = ValueType::Atom;
-        out.text = text.substr(start, index - start);
-        out.list.clear();
+        out = add_node(ValueType::Atom, text.substr(start, index - start), parent);
     }
 };
 
@@ -385,78 +399,6 @@ std::vector<Token> tokenize(std::string_view text, std::vector<Diagnostic>* diag
 ParseResult parse(std::string_view text) {
     Parser parser(text);
     return parser.parse();
-}
-
-bool is_atom(const Value& value, std::string_view atom) {
-    return value.type == ValueType::Atom && value.text == atom;
-}
-
-bool is_symbol(const Value& value, std::string_view symbol) {
-    return is_atom(value, symbol);
-}
-
-const Value* find_child(const Value& list, std::string_view symbol) {
-    if (list.type != ValueType::List)
-        return nullptr;
-
-    for (std::size_t index = 1; index < list.list.size(); ++index) {
-        const Value& child = list.list[index];
-        if (child.type != ValueType::List || child.list.empty())
-            continue;
-        if (is_atom(child.list.front(), symbol))
-            return &child;
-    }
-
-    return nullptr;
-}
-
-std::optional<int> extract_int(const Value& list, std::string_view symbol) {
-    const Value* node = find_child(list, symbol);
-    if (!node || node->list.size() < 2)
-        return std::nullopt;
-
-    const Value& value = node->list[1];
-    if (value.type == ValueType::Atom && looks_like_integer(value.text)) {
-        int parsed = 0;
-        const char* begin = value.text.data();
-        const char* end = begin + value.text.size();
-        auto result = std::from_chars(begin, end, parsed);
-        if (result.ec == std::errc{} && result.ptr == end)
-            return parsed;
-    }
-
-    return std::nullopt;
-}
-
-std::optional<float> extract_float(const Value& list, std::string_view symbol) {
-    const Value* node = find_child(list, symbol);
-    if (!node || node->list.size() < 2)
-        return std::nullopt;
-
-    const Value& value = node->list[1];
-    if (value.type == ValueType::Atom &&
-        (looks_like_float(value.text) || looks_like_integer(value.text))) {
-        float parsed = 0.0f;
-        const char* begin = value.text.data();
-        const char* end = begin + value.text.size();
-        auto result = std::from_chars(begin, end, parsed);
-        if (result.ec == std::errc{} && result.ptr == end)
-            return parsed;
-    }
-
-    return std::nullopt;
-}
-
-std::optional<std::string> extract_string(const Value& list, std::string_view symbol) {
-    const Value* node = find_child(list, symbol);
-    if (!node || node->list.size() < 2)
-        return std::nullopt;
-
-    const Value& value = node->list[1];
-    if (value.type == ValueType::String || value.type == ValueType::Atom)
-        return std::string(value.text);
-
-    return std::nullopt;
 }
 
 std::string quote_string(std::string_view text) {

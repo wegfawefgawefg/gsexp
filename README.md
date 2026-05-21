@@ -7,12 +7,12 @@
 `gsexp` is a small C++20 S-expression parser/writer helper. It is meant for
 simple config and data files used by vendored game libraries.
 
-It parses atoms, strings, and lists into plain structs with line/column
+It parses atoms, strings, and lists into flat parse-owned storage with line/column
 diagnostics. It is not a Lisp interpreter. It has no evaluator, macros, schema
 system, file search policy, or dependencies outside the C++ standard library.
 Numeric atoms are interpreted by helper functions when callers ask for numbers.
-Parsed `Value::text` fields are `std::string_view`s owned by the returned
-`ParseResult`; keep the `ParseResult` alive while reading values from it.
+Parsed `Node::text()` views are owned by the returned `ParseResult`; keep the
+`ParseResult` alive while reading nodes from it.
 
 ## Screenshot
 
@@ -62,13 +62,17 @@ if (!result.ok) {
     // Print result.diagnostics.
 }
 
-const gsexp::Value& root = result.values.front();
+gsexp::Node root = result.root(0);
 std::optional<std::string> name = gsexp::extract_string(root, "name");
 std::optional<int> width = gsexp::extract_int(root, "width");
 std::optional<float> scale = gsexp::extract_float(root, "scale");
+
+for (gsexp::Node child : root.children()) {
+    // Inspect child.type(), child.text(), or child.children().
+}
 ```
 
-Do not store `Value` references or `Value::text` views after the owning
+Do not store `Node` handles or `Node::text()` views after the owning
 `ParseResult` is destroyed.
 
 `gsexp` does not decide whether a key is valid for your file format. Parse the

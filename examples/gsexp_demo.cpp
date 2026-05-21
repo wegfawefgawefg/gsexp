@@ -20,12 +20,12 @@ int main() {
         return 1;
     }
 
-    if (result.values.empty()) {
+    if (result.root_count() == 0) {
         std::cerr << "no values parsed\n";
         return 1;
     }
 
-    const gsexp::Value& root = result.values.front();
+    gsexp::Node root = result.root(0);
     std::optional<std::string> name = gsexp::extract_string(root, "name");
     std::optional<int> width = gsexp::extract_int(root, "width");
     std::optional<float> scale = gsexp::extract_float(root, "scale");

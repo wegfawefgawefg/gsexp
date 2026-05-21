@@ -21,15 +21,22 @@ void test_parse_and_extract() {
 )");
 
     require(result.ok, "parse simple settings");
-    require(result.values.size() == 1, "parse one root");
+    require(result.root_count() == 1, "parse one root");
 
-    const gsexp::Value& root = result.values.front();
-    const gsexp::Value* width_node = gsexp::find_child(root, "width");
-    require(width_node != nullptr, "width node exists");
-    require(width_node->list[1].type == gsexp::ValueType::Atom, "numeric atom stays atom");
+    gsexp::Node root = result.root(0);
+    gsexp::Node width_node = gsexp::find_child(root, "width");
+    require(width_node.valid(), "width node exists");
+    require(width_node.child_at(1).type() == gsexp::ValueType::Atom, "numeric atom stays atom");
     require(gsexp::extract_string(root, "name") == "demo", "extract string");
     require(gsexp::extract_int(root, "width") == 1280, "extract int");
     require(gsexp::extract_float(root, "scale").has_value(), "extract float");
+
+    int children = 0;
+    for (gsexp::Node child : root.children()) {
+        require(child.valid(), "child iteration returns valid node");
+        ++children;
+    }
+    require(children == 4, "iterate root children");
 }
 
 void test_parse_result_owns_text() {
@@ -37,7 +44,7 @@ void test_parse_result_owns_text() {
     require(result.ok, "parse temporary source string");
 
     gsexp::ParseResult copied = result;
-    const gsexp::Value& copied_root = copied.values.front();
+    gsexp::Node copied_root = copied.root(0);
     require(gsexp::extract_string(copied_root, "name") == "demo", "copied result keeps string text");
     require(gsexp::extract_string(copied_root, "kind") == "atom", "copied result keeps atom text");
 }
@@ -46,35 +53,27 @@ void test_escaped_string_storage() {
     gsexp::ParseResult result = gsexp::parse(R"((root (text "line\nquoted\"text")))");
     require(result.ok, "parse escaped string");
 
-    const gsexp::Value& root = result.values.front();
+    gsexp::Node root = result.root(0);
     require(gsexp::extract_string(root, "text") == "line\nquoted\"text", "escaped string is decoded");
 }
 
 void test_int_range() {
-    gsexp::Value root;
-    root.type = gsexp::ValueType::List;
-
-    gsexp::Value key;
-    key.type = gsexp::ValueType::Atom;
-    key.text = "value";
-
     std::string out_of_range = std::to_string(std::numeric_limits<int>::max()) + "000";
-    gsexp::Value value;
-    value.type = gsexp::ValueType::Atom;
-    value.text = out_of_range;
+    gsexp::ParseResult result = gsexp::parse("(root (value " + out_of_range + "))");
+    require(result.ok, "parse out-of-range int");
+    require(!gsexp::extract_int(result.root(0), "value").has_value(), "reject out-of-range int");
+}
 
-    gsexp::Value child;
-    child.type = gsexp::ValueType::List;
-    child.list.push_back(key);
-    child.list.push_back(value);
-    gsexp::Value root_symbol;
-    root_symbol.type = gsexp::ValueType::Atom;
-    root_symbol.text = "root";
+void test_errors_and_roots() {
+    gsexp::ParseResult missing = gsexp::parse("(root");
+    require(!missing.ok, "missing paren fails");
+    require(!missing.diagnostics.empty(), "missing paren diagnostic");
 
-    root.list.push_back(root_symbol);
-    root.list.push_back(child);
-
-    require(!gsexp::extract_int(root, "value").has_value(), "reject out-of-range float int");
+    gsexp::ParseResult roots = gsexp::parse("(a 1) (b 2)");
+    require(roots.ok, "parse multiple roots");
+    require(roots.root_count() == 2, "multiple roots count");
+    require(roots.root(0).child_at(0).is_atom("a"), "first root is a");
+    require(roots.root(1).child_at(0).is_atom("b"), "second root is b");
 }
 
 } // namespace
@@ -84,6 +83,7 @@ int main() {
     test_parse_result_owns_text();
     test_escaped_string_storage();
     test_int_range();
+    test_errors_and_roots();
 
     std::cout << "gsexp_tests passed\n";
     return 0;

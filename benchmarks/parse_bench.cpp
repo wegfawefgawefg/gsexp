@@ -9,22 +9,6 @@
 
 namespace {
 
-enum class FlatNodeType {
-    List,
-    Atom,
-    String,
-};
-
-struct FlatNode {
-    FlatNodeType type = FlatNodeType::Atom;
-    std::string_view text;
-    std::size_t parent = static_cast<std::size_t>(-1);
-};
-
-bool bench_space(char c) {
-    return c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == '\v' || c == '\f';
-}
-
 std::string make_asset_data(int items) {
     std::ostringstream out;
     out << "(assets\n";
@@ -102,119 +86,6 @@ std::string make_wide_data(int items) {
     return out.str();
 }
 
-class FlatParser {
-  public:
-    explicit FlatParser(std::string_view source) : text(source) {}
-
-    bool parse() {
-        while (true) {
-            skip_space_and_comments();
-            if (index >= text.size())
-                return true;
-            if (!parse_value(no_parent))
-                return false;
-        }
-    }
-
-    std::size_t node_count() const {
-        return nodes.size();
-    }
-
-  private:
-    static constexpr std::size_t no_parent = static_cast<std::size_t>(-1);
-
-    std::string_view text;
-    std::size_t index = 0;
-    std::vector<FlatNode> nodes;
-
-    void skip_space_and_comments() {
-        while (index < text.size()) {
-            char c = text[index];
-            if (bench_space(c)) {
-                ++index;
-                continue;
-            }
-            if (c == ';' || c == '#') {
-                while (index < text.size() && text[index] != '\n')
-                    ++index;
-                continue;
-            }
-            return;
-        }
-    }
-
-    bool parse_value(std::size_t parent) {
-        if (index >= text.size())
-            return false;
-
-        char c = text[index];
-        if (c == '(')
-            return parse_list(parent);
-        if (c == ')' )
-            return false;
-        if (c == '"')
-            return parse_string(parent);
-
-        parse_atom(parent);
-        return true;
-    }
-
-    bool parse_list(std::size_t parent) {
-        std::size_t list_index = nodes.size();
-        nodes.push_back(FlatNode{FlatNodeType::List, {}, parent});
-        ++index;
-
-        while (true) {
-            skip_space_and_comments();
-            if (index >= text.size())
-                return false;
-            if (text[index] == ')') {
-                ++index;
-                return true;
-            }
-            if (!parse_value(list_index))
-                return false;
-        }
-    }
-
-    bool parse_string(std::size_t parent) {
-        ++index;
-        std::size_t start = index;
-        bool escaped = false;
-        while (index < text.size()) {
-            char c = text[index];
-            if (escaped) {
-                escaped = false;
-                ++index;
-                continue;
-            }
-            if (c == '\\') {
-                escaped = true;
-                ++index;
-                continue;
-            }
-            if (c == '"') {
-                nodes.push_back(FlatNode{FlatNodeType::String, text.substr(start, index - start), parent});
-                ++index;
-                return true;
-            }
-            ++index;
-        }
-        return false;
-    }
-
-    void parse_atom(std::size_t parent) {
-        std::size_t start = index;
-        while (index < text.size()) {
-            char c = text[index];
-            if (bench_space(c) || c == '(' || c == ')')
-                break;
-            ++index;
-        }
-        nodes.push_back(FlatNode{FlatNodeType::Atom, text.substr(start, index - start), parent});
-    }
-};
-
 double run_once(const char* name, const std::string& text, int iterations) {
     std::size_t parsed_roots = 0;
 
@@ -225,31 +96,11 @@ double run_once(const char* name, const std::string& text, int iterations) {
             std::cerr << "parse failed in benchmark case: " << name << "\n";
             std::exit(1);
         }
-        parsed_roots += result.values.size();
+        parsed_roots += result.root_count();
     }
     auto end = std::chrono::steady_clock::now();
     if (parsed_roots == 0) {
         std::cerr << "benchmark parsed no roots\n";
-        std::exit(1);
-    }
-    return std::chrono::duration<double>(end - start).count();
-}
-
-double run_flat_once(const char* name, const std::string& text, int iterations) {
-    std::size_t parsed_nodes = 0;
-
-    auto start = std::chrono::steady_clock::now();
-    for (int i = 0; i < iterations; ++i) {
-        FlatParser parser(text);
-        if (!parser.parse()) {
-            std::cerr << "flat parse failed in benchmark case: " << name << "\n";
-            std::exit(1);
-        }
-        parsed_nodes += parser.node_count();
-    }
-    auto end = std::chrono::steady_clock::now();
-    if (parsed_nodes == 0) {
-        std::cerr << "flat benchmark parsed no nodes\n";
         std::exit(1);
     }
     return std::chrono::duration<double>(end - start).count();
@@ -275,20 +126,6 @@ void run_parse_case(const char* name, const std::string& text, int iterations) {
               << " mib_per_second=" << (mib / best_seconds) << "\n";
 }
 
-void run_flat_parse_case(const char* name, const std::string& text, int iterations) {
-    double best_seconds = 0.0;
-    for (int run = 0; run < 3; ++run) {
-        double seconds = run_flat_once(name, text, iterations);
-        if (best_seconds == 0.0 || seconds < best_seconds)
-            best_seconds = seconds;
-    }
-
-    double mib = (static_cast<double>(text.size()) * iterations) / (1024.0 * 1024.0);
-    std::cout << name << " bytes=" << text.size() << " iterations=" << iterations
-              << " best_of=3 seconds=" << best_seconds
-              << " mib_per_second=" << (mib / best_seconds) << "\n";
-}
-
 void run_asset_case(const char* name, int items, int iterations) {
     run_parse_case(name, make_asset_data(items), iterations);
 }
@@ -304,7 +141,7 @@ double run_small_files_once(const char* name, const std::vector<std::string>& co
                 std::cerr << "parse failed in benchmark case: " << name << "\n";
                 std::exit(1);
             }
-            parsed_roots += result.values.size();
+            parsed_roots += result.root_count();
         }
     }
     auto end = std::chrono::steady_clock::now();
@@ -334,13 +171,17 @@ void run_small_files_case(const char* name, int files, int iterations) {
               << " mib_per_second=" << (mib / best_seconds) << "\n";
 }
 
-double run_query_once(const gsexp::Value& root, int iterations) {
+double run_query_once(gsexp::Node root, int iterations) {
     double sink = 0.0;
 
     auto start = std::chrono::steady_clock::now();
     for (int iteration = 0; iteration < iterations; ++iteration) {
-        for (std::size_t index = 1; index < root.list.size(); ++index) {
-            const gsexp::Value& asset = root.list[index];
+        bool first = true;
+        for (gsexp::Node asset : root.children()) {
+            if (first) {
+                first = false;
+                continue;
+            }
             std::optional<int> id = gsexp::extract_int(asset, "id");
             std::optional<float> x = gsexp::extract_float(asset, "x");
             std::optional<float> y = gsexp::extract_float(asset, "y");
@@ -363,14 +204,14 @@ double run_query_once(const gsexp::Value& root, int iterations) {
 
 void run_query_case(const char* name, int items, int iterations) {
     gsexp::ParseResult result = gsexp::parse(make_asset_data(items));
-    if (!result.ok || result.values.empty()) {
+    if (!result.ok || result.root_count() == 0) {
         std::cerr << "parse failed before query benchmark: " << name << "\n";
         std::exit(1);
     }
 
     double best_seconds = 0.0;
     for (int run = 0; run < 3; ++run) {
-        double seconds = run_query_once(result.values.front(), iterations);
+        double seconds = run_query_once(result.root(0), iterations);
         if (best_seconds == 0.0 || seconds < best_seconds)
             best_seconds = seconds;
     }
@@ -394,7 +235,5 @@ int main() {
     run_parse_case("deep_1k", make_deep_data(1000), 500);
     run_parse_case("wide_10k", make_wide_data(10000), 50);
     run_query_case("query_assets_10k", 10000, 100);
-    run_flat_parse_case("flat_assets_50k", make_asset_data(50000), 10);
-    run_flat_parse_case("flat_wide_10k", make_wide_data(10000), 50);
     return 0;
 }

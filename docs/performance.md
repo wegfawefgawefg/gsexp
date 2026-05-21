@@ -265,7 +265,7 @@ Plan 3 acceptance rule:
 
 3. Representation changes.
    - Started with source-owned `std::string_view` value text. `ParseResult`
-     owns copied source text plus decoded escaped strings; `Value::text` views
+     owns copied source text plus decoded escaped strings; text views
      remain valid while the owning result storage lives.
    - Kept despite an `assets_1k` regression because repeated runs improved
      `assets_10k`, `assets_50k`, `small_files_1k`, plain strings, wide lists,
@@ -436,3 +436,38 @@ Acceptance rules:
    low-level.
 6. No second parser API, no hidden recursive tree materialization, and no broad
    compatibility layer for the removed `Value` shape.
+
+## Optimization Plan 4 Status
+
+1. Flat storage parser.
+   - Implemented. `gsexp::parse(text)` now writes contiguous `NodeData` records
+     into `ParseResult` storage instead of materializing recursive `Value`
+     vectors.
+   - Measured normal `parse(text)` after the rewrite: `assets_10k` 59.42 MiB/s,
+     `assets_50k` 87.08 MiB/s, `wide_10k` 160.36 MiB/s, and
+     `strings_plain_5k` 371.92 MiB/s.
+   - These results clearly beat the previous public tree on the Plan 4 required
+     large and wide cases. `assets_1k` remains slower than the earlier small
+     recursive-tree best, but the larger target data improved substantially.
+
+2. Public node API.
+   - Implemented. `ParseResult::root(index)` returns `Node`; child traversal uses
+     `Node::children()`, `first_child()`, `next_sibling()`, and `child_at()`.
+
+3. Helper API.
+   - Implemented over `Node`: `is_atom`, `find_child`, `extract_int`,
+     `extract_float`, and `extract_string`.
+
+4. Recursive `Value` API.
+   - Removed. No compatibility parser or recursive tree materialization is kept.
+
+5. Downstream migration.
+   - `glayout` was updated to use `Node` handles and helper calls.
+
+6. Benchmark prototype.
+   - Removed from the benchmark source. The expanded benchmark suite now measures
+     normal `parse(text)` directly.
+
+7. File layout.
+   - Split node traversal and extraction helpers into `src/node.cpp`; parser,
+     tokenizer, and quoting remain in `src/sexp.cpp`.

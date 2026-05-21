@@ -9,6 +9,7 @@ option(GSEXP_BUILD_TESTS "Build test programs" ON)
 option(GSEXP_BUILD_BENCHMARKS "Build benchmark programs" OFF)
 
 add_library(gsexp
+    src/node.cpp
     src/sexp.cpp
 )
 

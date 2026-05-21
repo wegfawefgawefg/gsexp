@@ -96,20 +96,20 @@ std::uint32_t find_child_index(const ParseStorage& storage,
     if (list.child_count < indexed_child_threshold)
         return find_child_index_direct(storage, list, searched_head);
 
-    auto it = std::lower_bound(storage.child_indexes.begin(),
-                               storage.child_indexes.end(),
-                               list_index,
-                               [](const ChildIndexCache& item, std::uint32_t key) {
-                                   return item.list < key;
-                               });
-    if (it == storage.child_indexes.end() || it->list != list_index) {
+    if (storage.child_index_lookup.empty())
+        storage.child_index_lookup.assign(storage.nodes.size(), invalid_node);
+
+    std::uint32_t cache_index = storage.child_index_lookup[list_index];
+    if (cache_index == invalid_node) {
         ChildIndexCache cache;
         cache.list = list_index;
         cache.entries = build_child_index(storage, list);
-        it = storage.child_indexes.insert(it, std::move(cache));
+        cache_index = static_cast<std::uint32_t>(storage.child_indexes.size());
+        storage.child_indexes.push_back(std::move(cache));
+        storage.child_index_lookup[list_index] = cache_index;
     }
 
-    const std::vector<KeyIndexEntry>& entries = it->entries;
+    const std::vector<KeyIndexEntry>& entries = storage.child_indexes[cache_index].entries;
     auto entry = std::lower_bound(entries.begin(),
                                   entries.end(),
                                   searched_head,
@@ -201,18 +201,13 @@ Node FormView::arg(std::size_t index) const {
 }
 
 Node FormView::find(std::string_view searched_head) const {
-    if (cached_form.valid() && cached_head == searched_head)
-        return cached_form;
-
     const ParseStorage* storage = form.storage;
     const NodeData* form_data = form.data();
     if (!storage || !form_data || form_data->type != ValueType::List)
         return {};
 
     std::uint32_t child_index = find_child_index(*storage, form.index, *form_data, searched_head);
-    cached_head = searched_head;
-    cached_form = Node(storage, child_index);
-    return cached_form;
+    return Node(storage, child_index);
 }
 
 Node FormView::find_arg(std::string_view searched_head, std::size_t index) const {

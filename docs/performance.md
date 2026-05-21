@@ -23,45 +23,45 @@ Older optimization plans and detailed results are archived in
 
 ## Current Results
 
-Latest verified Plan 10 results on this machine:
+Latest verified Plan 11 results on this machine:
 
 | Case | Result |
 | --- | ---: |
-| assets_10k | 223.80 MiB/s |
-| assets_50k | 195.36 MiB/s |
-| asset_database_5k | 251.49 MiB/s |
-| asset_database_5k_owned | 269.45 MiB/s |
-| asset_database_5k_file_read | 391.10 MiB/s |
-| asset_database_5k_file_owned | 157.70 MiB/s |
-| small_files_1k | 180.60 MiB/s |
-| strings_plain_5k | 909.99 MiB/s |
-| strings_escaped_5k | 572.55 MiB/s |
-| deep_1k | 191.21 MiB/s |
-| wide_10k | 290.25 MiB/s |
-| query_assets_10k | 16.31M queries/s |
-| query_first_10k | 14.47M queries/s |
-| query_last_10k | 8.07M queries/s |
-| query_missing_10k | 10.77M queries/s |
-| query_string_view_10k | 13.14M queries/s |
-| query_text_only_10k | 43.96M queries/s |
-| query_symbol_compare_10k | 32.06M queries/s |
-| query_many_keys_last | 4.94M queries/s |
-| query_find_many_keys_last | 4.58M queries/s |
-| query_child_at_many_keys_last | 4.08M queries/s |
+| assets_10k | 174.88 MiB/s |
+| assets_50k | 165.28 MiB/s |
+| asset_database_5k | 253.76 MiB/s |
+| asset_database_5k_owned | 246.82 MiB/s |
+| asset_database_5k_file_read | 369.13 MiB/s |
+| asset_database_5k_file_owned | 142.79 MiB/s |
+| small_files_1k | 145.27 MiB/s |
+| strings_plain_5k | 788.50 MiB/s |
+| strings_escaped_5k | 507.71 MiB/s |
+| deep_1k | 171.55 MiB/s |
+| wide_10k | 244.18 MiB/s |
+| query_assets_10k | 14.76M queries/s |
+| query_first_10k | 10.44M queries/s |
+| query_last_10k | 7.54M queries/s |
+| query_missing_10k | 10.40M queries/s |
+| query_string_view_10k | 12.67M queries/s |
+| query_text_only_10k | 37.13M queries/s |
+| query_symbol_compare_10k | 28.56M queries/s |
+| query_many_keys_last | 5.65M queries/s |
+| query_find_many_keys_last | 6.33M queries/s |
+| query_child_at_many_keys_last | 4.93M queries/s |
 
 Latest yyjson comparison results:
 
 | Equivalent case | gsexp | yyjson | yyjson/gsexp |
 | --- | ---: | ---: | ---: |
-| assets_10k parse | 223.80 MiB/s | 677.16 MiB/s | 3.03x |
-| assets_50k parse | 195.36 MiB/s | 686.74 MiB/s | 3.51x |
-| asset_database_5k parse | 251.49 MiB/s | 768.28 MiB/s | 3.05x |
-| small_files_1k parse | 180.60 MiB/s | 555.83 MiB/s | 3.08x |
-| strings_plain_5k parse | 909.99 MiB/s | 1445.17 MiB/s | 1.59x |
-| strings_escaped_5k parse | 572.55 MiB/s | 1227.57 MiB/s | 2.14x |
-| wide_10k parse | 290.25 MiB/s | 806.36 MiB/s | 2.78x |
-| assets_10k lookup | 16.31M queries/s | 100.79M queries/s | 6.18x |
-| many_keys_last lookup | 4.94M queries/s | 13.20M queries/s | 2.67x |
+| assets_10k parse | 174.88 MiB/s | 572.43 MiB/s | 3.27x |
+| assets_50k parse | 165.28 MiB/s | 652.36 MiB/s | 3.95x |
+| asset_database_5k parse | 253.76 MiB/s | 736.07 MiB/s | 2.90x |
+| small_files_1k parse | 145.27 MiB/s | 545.70 MiB/s | 3.76x |
+| strings_plain_5k parse | 788.50 MiB/s | 1442.96 MiB/s | 1.83x |
+| strings_escaped_5k parse | 507.71 MiB/s | 1282.94 MiB/s | 2.53x |
+| wide_10k parse | 244.18 MiB/s | 839.41 MiB/s | 3.44x |
+| assets_10k lookup | 14.76M queries/s | 113.40M queries/s | 7.68x |
+| many_keys_last lookup | 5.65M queries/s | 11.33M queries/s | 2.01x |
 
 These are equivalent data shapes, not byte-identical files. The JSON fixtures
 are generated beside the S-expression fixtures and measured by each format's
@@ -196,10 +196,9 @@ Important Plan 10 retained changes:
    compatibility wrappers.
 3. Tests, examples, README, and benchmarks use `FormView`.
 4. `glayout` was updated to use `FormView` and builds against the new API.
-5. `FormView` keeps a tiny last-lookup cache without heap allocation.
-6. `FormView::get_*` uses internal value-child lookup helpers to avoid extra
+5. `FormView::get_*` uses internal value-child lookup helpers to avoid extra
    temporary `Node` and `FormView` construction on hot query paths.
-7. Wide forms still use the parse-storage lazy child index. Small forms use
+6. Wide forms still use the parse-storage lazy child index. Small forms use
    direct scans because per-view heap indexing was slower.
 
 Plan 10 optimization attempt results:
@@ -209,7 +208,6 @@ Plan 10 optimization attempt results:
 | Public `FormView` API migration | Kept. It removes parallel public extraction styles and gives the query code a single documented shape. |
 | Per-view vector cache built on first lookup | Rejected. It dropped common asset lookup to 5.38M queries/s and single-field lookups to about 1.9M queries/s because every view paid heap allocation and sort cost. |
 | Direct small-form scan plus existing wide-form storage cache | Kept. It recovered wide-key lookup while avoiding the per-view allocation cost for small forms. |
-| Tiny last-lookup cache | Kept. It gives `FormView` caller-owned lookup state without heap allocation. It does not materially change the benchmark either way, but it preserves the intended extension point. |
 | Internal `FormView::get_*` value-child fast path | Kept. Current run reached 16.31M queries/s for common asset lookup and 4.94M queries/s for many-key lookup, both above the Plan 9 recorded results. |
 | Make `get_string_view` the benchmark default | Kept. The asset lookup benchmark now measures borrowed string access through `FormView`, which is the intended asset-loading style when `ParseResult` remains alive. |
 
@@ -239,6 +237,9 @@ Attempt results so far:
 | Length-gated `FormView` direct lookup | Rejected. It did not improve the main lookup benchmarks and hurt wide-key lookup in the measured run. |
 | Custom checked integer parser | Rejected. It preserved tests but did not beat `looks_like_integer` plus `from_chars` on the integer lookup benchmarks. |
 | Length-gated `Node::is_atom` | Rejected. It was too noisy and did not produce a stable improvement in the isolated final run. |
+| Head metadata in list text fields | Rejected. It kept `NodeData` at 24 bytes, but it slowed parse by mutating parent list text fields on first-child append and did not improve lookup. |
+| Remove `FormView` last-lookup cache | Kept. The cache was not used by the hot `get_*` path and only helped repeated `find()` of the same key on the same view. Removing it simplifies `FormView` and removes one string comparison from `find()`. |
+| Flat child-index lookup table | Kept. Wide-form lookup now uses a direct `list_index -> cache_index` table after the first wide lookup. It improved `query_many_keys_last` from 4.94M to 5.65M queries/s and `query_find_many_keys_last` from 4.58M to 6.33M queries/s. The table is allocated lazily only when wide-form indexes are used. |
 
 Work order:
 

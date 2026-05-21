@@ -76,6 +76,7 @@ struct ParseStorage {
     std::size_t decoded_string_count = 0;
     std::vector<NodeData> nodes;
     mutable std::vector<ChildIndexCache> child_indexes;
+    mutable std::vector<std::uint32_t> child_index_lookup;
 };
 
 struct StorageStats {
@@ -89,6 +90,7 @@ struct StorageStats {
     std::size_t decoded_string_bytes = 0;
     std::size_t child_index_count = 0;
     std::size_t child_index_capacity = 0;
+    std::size_t child_index_lookup_capacity = 0;
     std::size_t child_index_entry_count = 0;
     std::size_t child_index_entry_capacity = 0;
     std::size_t root_count = 0;
@@ -195,8 +197,6 @@ class FormView {
 
   private:
     Node form;
-    mutable std::string_view cached_head;
-    mutable Node cached_form;
 };
 
 bool looks_like_integer(std::string_view text);

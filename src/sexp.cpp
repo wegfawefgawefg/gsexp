@@ -36,10 +36,14 @@ void add_diagnostic(std::vector<Diagnostic>* diagnostics,
 
 class Parser {
   public:
-    explicit Parser(std::string_view source) : text(source) {}
+    explicit Parser(std::string_view source) : storage(std::make_shared<ParseStorage>()) {
+        storage->source = source;
+        text = storage->source;
+    }
 
     ParseResult parse() {
         ParseResult result;
+        result.storage = storage;
 
         while (true) {
             skip_space_and_comments();
@@ -57,6 +61,7 @@ class Parser {
     }
 
   private:
+    std::shared_ptr<ParseStorage> storage;
     std::string_view text;
     std::size_t index = 0;
     int line = 1;
@@ -119,7 +124,7 @@ class Parser {
         advance();
 
         out.type = ValueType::List;
-        out.text.clear();
+        out.text = {};
         out.list.clear();
         out.list.reserve(2);
 
@@ -146,6 +151,23 @@ class Parser {
         int start_column = column;
         advance();
 
+        std::size_t content_start = index;
+        std::size_t scan = index;
+        while (scan < text.size()) {
+            char ch = text[scan];
+            if (ch == '"') {
+                out.type = ValueType::String;
+                out.text = text.substr(content_start, scan - content_start);
+                out.list.clear();
+                column += static_cast<int>(scan - content_start) + 1;
+                index = scan + 1;
+                return true;
+            }
+            if (ch == '\\' || ch == '\n' || ch == '\r')
+                break;
+            ++scan;
+        }
+
         std::string buffer;
         buffer.reserve(32);
         while (index < text.size()) {
@@ -164,8 +186,9 @@ class Parser {
                     default: buffer.push_back(esc); break;
                 }
             } else if (ch == '"') {
+                storage->decoded_strings.push_back(std::move(buffer));
                 out.type = ValueType::String;
-                out.text = std::move(buffer);
+                out.text = storage->decoded_strings.back();
                 out.list.clear();
                 return true;
             } else {
@@ -188,7 +211,7 @@ class Parser {
 
         column += static_cast<int>(index - start);
         out.type = ValueType::Atom;
-        out.text.assign(text.substr(start, index - start));
+        out.text = text.substr(start, index - start);
         out.list.clear();
     }
 };
@@ -431,7 +454,7 @@ std::optional<std::string> extract_string(const Value& list, std::string_view sy
 
     const Value& value = node->list[1];
     if (value.type == ValueType::String || value.type == ValueType::Atom)
-        return value.text;
+        return std::string(value.text);
 
     return std::nullopt;
 }

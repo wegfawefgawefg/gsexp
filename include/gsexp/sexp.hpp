@@ -1,5 +1,7 @@
 #pragma once
 
+#include <deque>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -41,12 +43,18 @@ struct Token {
 
 struct Value {
     ValueType type = ValueType::List;
-    std::string text;
+    std::string_view text;
     std::vector<Value> list;
+};
+
+struct ParseStorage {
+    std::string source;
+    std::deque<std::string> decoded_strings;
 };
 
 struct ParseResult {
     bool ok = false;
+    std::shared_ptr<ParseStorage> storage;
     std::vector<Value> values;
     std::vector<Diagnostic> diagnostics;
 };

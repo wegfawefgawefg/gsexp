@@ -65,6 +65,7 @@ Plan 3 optimization attempts.
 | 2026-05-21 | Add expanded benchmark suite | Measurement coverage | Kept |
 | 2026-05-21 | Use `std::from_chars` in extraction helpers | `query_assets_10k` | Kept; improved from 6.52M to 9.93M-10.13M queries/s |
 | 2026-05-21 | Reserve one top-level root slot | `small_files_1k` | Reverted; no clear gain and parse cases were noisy/worse |
+| 2026-05-21 | Source-owned `std::string_view` value text | `assets_50k`, string-heavy, wide lists | Kept; large/string-heavy wins, `assets_1k` regressed |
 
 ## Optimization Plan 2
 
@@ -260,8 +261,16 @@ Plan 3 acceptance rule:
      in repeated runs.
 
 3. Representation changes.
-   - Not started yet. The next candidate should be chosen using the expanded
-     benchmark suite, not just `assets_1k` and `assets_10k`.
+   - Started with source-owned `std::string_view` value text. `ParseResult`
+     owns copied source text plus decoded escaped strings; `Value::text` views
+     remain valid while the owning result storage lives.
+   - Kept despite an `assets_1k` regression because repeated runs improved
+     `assets_10k`, `assets_50k`, `small_files_1k`, plain strings, wide lists,
+     and query throughput.
+   - Measured repeated results after the change: `assets_10k` 42.28-43.78
+     MiB/s, `assets_50k` 45.49-46.29 MiB/s, `strings_plain_5k` 258.90-276.39
+     MiB/s, `wide_10k` 121.04-125.83 MiB/s, `query_assets_10k` 10.20M-10.43M
+     queries/s.
 
 4. Top-level root reservation.
    - Reverted. Reserving one root slot did not clearly improve the many-small

@@ -11,6 +11,8 @@ It parses atoms, strings, and lists into plain structs with line/column
 diagnostics. It is not a Lisp interpreter. It has no evaluator, macros, schema
 system, file search policy, or dependencies outside the C++ standard library.
 Numeric atoms are interpreted by helper functions when callers ask for numbers.
+Parsed `Value::text` fields are `std::string_view`s owned by the returned
+`ParseResult`; keep the `ParseResult` alive while reading values from it.
 
 ## Screenshot
 
@@ -65,6 +67,9 @@ std::optional<std::string> name = gsexp::extract_string(root, "name");
 std::optional<int> width = gsexp::extract_int(root, "width");
 std::optional<float> scale = gsexp::extract_float(root, "scale");
 ```
+
+Do not store `Value` references or `Value::text` views after the owning
+`ParseResult` is destroyed.
 
 `gsexp` does not decide whether a key is valid for your file format. Parse the
 tree, then validate it in the owning library or application.

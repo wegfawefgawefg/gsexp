@@ -19,6 +19,8 @@ It should stay small:
 - Tokenize atoms, strings, and list delimiters.
 - Parse one or more root expressions from a string.
 - Preserve syntax-level value types: list, atom, string.
+- Own parsed source storage in `ParseResult`; value text views are valid for as
+  long as the owning `ParseResult` remains alive.
 - Report parse diagnostics with line and column.
 - Quote strings for writers in dependent libraries.
 - Provide small helper functions for interpreting atoms as ints/floats and for

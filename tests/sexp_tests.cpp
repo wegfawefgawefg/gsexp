@@ -32,6 +32,24 @@ void test_parse_and_extract() {
     require(gsexp::extract_float(root, "scale").has_value(), "extract float");
 }
 
+void test_parse_result_owns_text() {
+    gsexp::ParseResult result = gsexp::parse(std::string("(root (name \"demo\") (kind atom))"));
+    require(result.ok, "parse temporary source string");
+
+    gsexp::ParseResult copied = result;
+    const gsexp::Value& copied_root = copied.values.front();
+    require(gsexp::extract_string(copied_root, "name") == "demo", "copied result keeps string text");
+    require(gsexp::extract_string(copied_root, "kind") == "atom", "copied result keeps atom text");
+}
+
+void test_escaped_string_storage() {
+    gsexp::ParseResult result = gsexp::parse(R"((root (text "line\nquoted\"text")))");
+    require(result.ok, "parse escaped string");
+
+    const gsexp::Value& root = result.values.front();
+    require(gsexp::extract_string(root, "text") == "line\nquoted\"text", "escaped string is decoded");
+}
+
 void test_int_range() {
     gsexp::Value root;
     root.type = gsexp::ValueType::List;
@@ -40,9 +58,10 @@ void test_int_range() {
     key.type = gsexp::ValueType::Atom;
     key.text = "value";
 
+    std::string out_of_range = std::to_string(std::numeric_limits<int>::max()) + "000";
     gsexp::Value value;
     value.type = gsexp::ValueType::Atom;
-    value.text = std::to_string(std::numeric_limits<int>::max()) + "000";
+    value.text = out_of_range;
 
     gsexp::Value child;
     child.type = gsexp::ValueType::List;
@@ -62,6 +81,8 @@ void test_int_range() {
 
 int main() {
     test_parse_and_extract();
+    test_parse_result_owns_text();
+    test_escaped_string_storage();
     test_int_range();
 
     std::cout << "gsexp_tests passed\n";

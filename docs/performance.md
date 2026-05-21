@@ -66,6 +66,7 @@ Plan 3 optimization attempts.
 | 2026-05-21 | Use `std::from_chars` in extraction helpers | `query_assets_10k` | Kept; improved from 6.52M to 9.93M-10.13M queries/s |
 | 2026-05-21 | Reserve one top-level root slot | `small_files_1k` | Reverted; no clear gain and parse cases were noisy/worse |
 | 2026-05-21 | Source-owned `std::string_view` value text | `assets_50k`, string-heavy, wide lists | Kept; large/string-heavy wins, `assets_1k` regressed |
+| 2026-05-21 | Store atom text hashes for faster `is_atom` rejection | `query_assets_10k` | Reverted; query and large parse cases were slower |
 
 ## Optimization Plan 2
 
@@ -275,3 +276,8 @@ Plan 3 acceptance rule:
 4. Top-level root reservation.
    - Reverted. Reserving one root slot did not clearly improve the many-small
      files case and added no value for the dominant single-root data shapes.
+
+5. Atom hash lookup.
+   - Reverted. Adding a stored FNV-style atom hash increased parse work and did
+     not improve repeated `find_child`/`is_atom` queries. `query_assets_10k`
+     dropped to 9.57M-9.62M queries/s, below the source-view result.

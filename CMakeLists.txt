@@ -12,6 +12,7 @@ option(GSEXP_BENCHMARK_YYJSON "Fetch yyjson for benchmark comparison" ON)
 add_library(gsexp
     src/node.cpp
     src/sexp.cpp
+    src/tokenize.cpp
 )
 
 add_library(gsexp::gsexp ALIAS gsexp)

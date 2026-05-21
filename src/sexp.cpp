@@ -1,5 +1,13 @@
 #include "gsexp/sexp.hpp"
 
+#if defined(__SSE2__) &&                                                                      \
+    (defined(__x86_64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86))
+#include <emmintrin.h>
+#define GSEXP_PARSE_SSE2 1
+#else
+#define GSEXP_PARSE_SSE2 0
+#endif
+
 #include <utility>
 
 namespace gsexp {
@@ -20,6 +28,98 @@ bool is_digit(char c) {
 
 bool is_delimiter(char c) {
     return is_space(c) || c == '(' || c == ')';
+}
+
+bool is_string_special(char c) {
+    return c == '"' || c == '\\' || c == '\n' || c == '\r';
+}
+
+int first_set_bit(std::uint32_t mask) {
+    int bit = 0;
+    while ((mask & 1u) == 0u) {
+        mask >>= 1u;
+        ++bit;
+    }
+    return bit;
+}
+
+#if GSEXP_PARSE_SSE2
+__m128i match_byte(__m128i bytes, char c) {
+    return _mm_cmpeq_epi8(bytes, _mm_set1_epi8(c));
+}
+#endif
+
+std::size_t find_atom_end(std::string_view text, std::size_t start) {
+    std::size_t index = start;
+
+#if GSEXP_PARSE_SSE2
+    while (index + 16 <= text.size()) {
+        __m128i bytes = _mm_loadu_si128(reinterpret_cast<const __m128i*>(text.data() + index));
+        __m128i matches = match_byte(bytes, '(');
+        matches = _mm_or_si128(matches, match_byte(bytes, ')'));
+        matches = _mm_or_si128(matches, match_byte(bytes, ' '));
+        matches = _mm_or_si128(matches, match_byte(bytes, '\n'));
+        matches = _mm_or_si128(matches, match_byte(bytes, '\r'));
+        matches = _mm_or_si128(matches, match_byte(bytes, '\t'));
+        matches = _mm_or_si128(matches, match_byte(bytes, '\v'));
+        matches = _mm_or_si128(matches, match_byte(bytes, '\f'));
+
+        std::uint32_t mask = static_cast<std::uint32_t>(_mm_movemask_epi8(matches));
+        if (mask != 0)
+            return index + static_cast<std::size_t>(first_set_bit(mask));
+        index += 16;
+    }
+#endif
+
+    while (index < text.size() && !is_delimiter(text[index]))
+        ++index;
+    return index;
+}
+
+std::size_t find_string_special(std::string_view text, std::size_t start) {
+    std::size_t index = start;
+
+#if GSEXP_PARSE_SSE2
+    while (index + 16 <= text.size()) {
+        __m128i bytes = _mm_loadu_si128(reinterpret_cast<const __m128i*>(text.data() + index));
+        __m128i matches = match_byte(bytes, '"');
+        matches = _mm_or_si128(matches, match_byte(bytes, '\\'));
+        matches = _mm_or_si128(matches, match_byte(bytes, '\n'));
+        matches = _mm_or_si128(matches, match_byte(bytes, '\r'));
+
+        std::uint32_t mask = static_cast<std::uint32_t>(_mm_movemask_epi8(matches));
+        if (mask != 0)
+            return index + static_cast<std::size_t>(first_set_bit(mask));
+        index += 16;
+    }
+#endif
+
+    while (index < text.size() && !is_string_special(text[index]))
+        ++index;
+    return index;
+}
+
+struct SourcePosition {
+    int line = 1;
+    int column = 1;
+};
+
+SourcePosition position_for_offset(std::string_view source, std::size_t offset) {
+    SourcePosition position;
+    std::size_t end = offset;
+    if (end > source.size())
+        end = source.size();
+
+    for (std::size_t index = 0; index < end; ++index) {
+        if (source[index] == '\n') {
+            ++position.line;
+            position.column = 1;
+        } else {
+            ++position.column;
+        }
+    }
+
+    return position;
 }
 
 std::size_t estimate_node_reserve(std::string_view source) {
@@ -92,27 +192,6 @@ std::size_t estimate_node_reserve(std::string_view source) {
     return estimate;
 }
 
-void advance_position(char c, int& line, int& column) {
-    if (c == '\n') {
-        ++line;
-        column = 1;
-        return;
-    }
-
-    ++column;
-}
-
-void add_diagnostic(std::vector<Diagnostic>* diagnostics,
-                    DiagnosticSeverity severity,
-                    std::string message,
-                    int line,
-                    int column) {
-    if (!diagnostics)
-        return;
-
-    diagnostics->push_back(Diagnostic{severity, std::move(message), line, column});
-}
-
 class Parser {
   public:
     explicit Parser(std::string source) : storage(std::make_shared<ParseStorage>()) {
@@ -147,8 +226,6 @@ class Parser {
     std::vector<std::uint32_t> last_children;
     std::string_view text;
     std::size_t index = 0;
-    int line = 1;
-    int column = 1;
 
     std::uint32_t add_node(ValueType type, std::string_view node_text, std::uint32_t parent) {
         std::uint32_t node_index = static_cast<std::uint32_t>(storage->nodes.size());
@@ -172,30 +249,25 @@ class Parser {
         return node_index;
     }
 
-    void advance() {
-        advance_position(text[index], line, column);
-        ++index;
-    }
-
     void add_error(std::vector<Diagnostic>& diagnostics,
                    std::string message,
-                   int error_line,
-                   int error_column) {
+                   std::size_t error_offset) {
+        SourcePosition position = position_for_offset(text, error_offset);
         diagnostics.push_back(
-            Diagnostic{DiagnosticSeverity::Error, std::move(message), error_line, error_column});
+            Diagnostic{DiagnosticSeverity::Error, std::move(message), position.line, position.column});
     }
 
     void skip_space_and_comments() {
         while (index < text.size()) {
             char c = text[index];
             if (is_space(c)) {
-                advance();
+                ++index;
                 continue;
             }
 
             if (c == ';' || c == '#') {
                 while (index < text.size() && text[index] != '\n')
-                    advance();
+                    ++index;
                 continue;
             }
 
@@ -207,7 +279,7 @@ class Parser {
                      std::uint32_t& out,
                      std::vector<Diagnostic>& diagnostics) {
         if (index >= text.size()) {
-            add_error(diagnostics, "expected value", line, column);
+            add_error(diagnostics, "expected value", index);
             return false;
         }
 
@@ -215,7 +287,7 @@ class Parser {
         if (c == '(')
             return parse_list(parent, out, diagnostics);
         if (c == ')') {
-            add_error(diagnostics, "unexpected ')'", line, column);
+            add_error(diagnostics, "unexpected ')'", index);
             return false;
         }
         if (c == '"')
@@ -228,20 +300,19 @@ class Parser {
     bool parse_list(std::uint32_t parent,
                     std::uint32_t& out,
                     std::vector<Diagnostic>& diagnostics) {
-        int start_line = line;
-        int start_column = column;
-        advance();
+        std::size_t start_offset = index;
+        ++index;
 
         out = add_node(ValueType::List, {}, parent);
 
         while (true) {
             skip_space_and_comments();
             if (index >= text.size()) {
-                add_error(diagnostics, "missing closing ')'", start_line, start_column);
+                add_error(diagnostics, "missing closing ')'", start_offset);
                 return false;
             }
             if (text[index] == ')') {
-                advance();
+                ++index;
                 return true;
             }
 
@@ -254,34 +325,26 @@ class Parser {
     bool parse_string(std::uint32_t parent,
                       std::uint32_t& out,
                       std::vector<Diagnostic>& diagnostics) {
-        int start_line = line;
-        int start_column = column;
-        advance();
+        std::size_t start_offset = index;
+        ++index;
 
         std::size_t content_start = index;
-        std::size_t scan = index;
-        while (scan < text.size()) {
-            char ch = text[scan];
-            if (ch == '"') {
-                out = add_node(ValueType::String, text.substr(content_start, scan - content_start), parent);
-                column += static_cast<int>(scan - content_start) + 1;
-                index = scan + 1;
-                return true;
-            }
-            if (ch == '\\' || ch == '\n' || ch == '\r')
-                break;
-            ++scan;
+        std::size_t scan = find_string_special(text, index);
+        if (scan < text.size() && text[scan] == '"') {
+            out = add_node(ValueType::String, text.substr(content_start, scan - content_start), parent);
+            index = scan + 1;
+            return true;
         }
 
         std::string buffer;
         buffer.reserve(32);
         while (index < text.size()) {
             char ch = text[index];
-            advance();
+            ++index;
 
             if (ch == '\\' && index < text.size()) {
                 char esc = text[index];
-                advance();
+                ++index;
                 switch (esc) {
                     case 'n': buffer.push_back('\n'); break;
                     case 'r': buffer.push_back('\r'); break;
@@ -298,13 +361,17 @@ class Parser {
             }
         }
 
-        add_error(diagnostics, "unterminated string", start_line, start_column);
+        add_error(diagnostics, "unterminated string", start_offset);
         return false;
     }
 
     std::string_view store_decoded_string(const std::string& value) {
-        if (storage->decoded_text.capacity() == 0)
-            storage->decoded_text.reserve(storage->source.size());
+        if (storage->decoded_text.capacity() == 0) {
+            std::size_t reserve_size = storage->source.size() - (storage->source.size() / 4);
+            if (reserve_size < value.size())
+                reserve_size = value.size();
+            storage->decoded_text.reserve(reserve_size);
+        }
 
         std::size_t offset = storage->decoded_text.size();
         storage->decoded_text.insert(storage->decoded_text.end(), value.begin(), value.end());
@@ -314,14 +381,8 @@ class Parser {
 
     void parse_atom(std::uint32_t parent, std::uint32_t& out) {
         std::size_t start = index;
-        while (index < text.size()) {
-            char ch = text[index];
-            if (is_delimiter(ch))
-                break;
-            ++index;
-        }
+        index = find_atom_end(text, index);
 
-        column += static_cast<int>(index - start);
         out = add_node(ValueType::Atom, text.substr(start, index - start), parent);
     }
 };
@@ -387,111 +448,6 @@ bool looks_like_float(std::string_view text) {
     return digit && (dot || exp);
 }
 
-std::vector<Token> tokenize(std::string_view text, std::vector<Diagnostic>* diagnostics) {
-    std::vector<Token> tokens;
-    std::size_t index = 0;
-    int line = 1;
-    int column = 1;
-
-    while (index < text.size()) {
-        char c = text[index];
-
-        if (is_space(c)) {
-            advance_position(c, line, column);
-            ++index;
-            continue;
-        }
-
-        if (c == ';' || c == '#') {
-            while (index < text.size() && text[index] != '\n') {
-                advance_position(text[index], line, column);
-                ++index;
-            }
-            continue;
-        }
-
-        int token_line = line;
-        int token_column = column;
-
-        if (c == '(') {
-            tokens.push_back(Token{TokenType::LParen, "(", token_line, token_column});
-            advance_position(c, line, column);
-            ++index;
-            continue;
-        }
-
-        if (c == ')') {
-            tokens.push_back(Token{TokenType::RParen, ")", token_line, token_column});
-            advance_position(c, line, column);
-            ++index;
-            continue;
-        }
-
-        if (c == '"') {
-            advance_position(c, line, column);
-            ++index;
-
-            std::string buffer;
-            bool closed = false;
-            while (index < text.size()) {
-                char ch = text[index];
-                advance_position(ch, line, column);
-                ++index;
-
-                if (ch == '\\' && index < text.size()) {
-                    char esc = text[index];
-                    advance_position(esc, line, column);
-                    ++index;
-                    switch (esc) {
-                        case 'n': buffer.push_back('\n'); break;
-                        case 'r': buffer.push_back('\r'); break;
-                        case 't': buffer.push_back('\t'); break;
-                        case '\\': buffer.push_back('\\'); break;
-                        case '"': buffer.push_back('"'); break;
-                        default: buffer.push_back(esc); break;
-                    }
-                } else if (ch == '"') {
-                    closed = true;
-                    break;
-                } else {
-                    buffer.push_back(ch);
-                }
-            }
-
-            if (!closed) {
-                add_diagnostic(diagnostics,
-                               DiagnosticSeverity::Error,
-                               "unterminated string",
-                               token_line,
-                               token_column);
-                return tokens;
-            }
-
-            tokens.push_back(Token{TokenType::String, buffer, token_line, token_column});
-            continue;
-        }
-
-        std::size_t start = index;
-        while (index < text.size()) {
-            char ch = text[index];
-            if (is_delimiter(ch))
-                break;
-
-            advance_position(ch, line, column);
-            ++index;
-        }
-
-        tokens.push_back(Token{
-            TokenType::Atom,
-            std::string(text.substr(start, index - start)),
-            token_line,
-            token_column,
-        });
-    }
-
-    return tokens;
-}
-
 ParseResult parse(std::string_view text) {
     Parser parser{std::string(text)};
     return parser.parse();
@@ -500,26 +456,6 @@ ParseResult parse(std::string_view text) {
 ParseResult parse_owned(std::string text) {
     Parser parser(std::move(text));
     return parser.parse();
-}
-
-std::string quote_string(std::string_view text) {
-    std::string out;
-    out.reserve(text.size() + 2);
-    out.push_back('"');
-
-    for (char c : text) {
-        switch (c) {
-            case '\\': out += "\\\\"; break;
-            case '"': out += "\\\""; break;
-            case '\n': out += "\\n"; break;
-            case '\r': out += "\\r"; break;
-            case '\t': out += "\\t"; break;
-            default: out.push_back(c); break;
-        }
-    }
-
-    out.push_back('"');
-    return out;
 }
 
 } // namespace gsexp

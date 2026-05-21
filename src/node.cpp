@@ -1,5 +1,6 @@
 #include "gsexp/sexp.hpp"
 
+#include <algorithm>
 #include <charconv>
 #include <utility>
 
@@ -32,14 +33,19 @@ std::vector<KeyIndexEntry> build_child_index(const ParseStorage& storage, const 
         child_index = child.next_sibling;
     }
 
+    std::stable_sort(entries.begin(), entries.end(), [](const KeyIndexEntry& a, const KeyIndexEntry& b) {
+        return a.key < b.key;
+    });
     return entries;
 }
 
-Node find_child_direct(const ParseStorage* storage, const NodeData& list, std::string_view symbol) {
+std::uint32_t find_child_index_direct(const ParseStorage& storage,
+                                      const NodeData& list,
+                                      std::string_view symbol) {
     bool first = true;
     std::uint32_t child_index = list.first_child;
-    while (child_index != invalid_node && child_index < storage->nodes.size()) {
-        const NodeData& child = storage->nodes[child_index];
+    while (child_index != invalid_node && child_index < storage.nodes.size()) {
+        const NodeData& child = storage.nodes[child_index];
         if (first) {
             first = false;
             child_index = child.next_sibling;
@@ -51,14 +57,65 @@ Node find_child_direct(const ParseStorage* storage, const NodeData& list, std::s
             continue;
         }
 
-        const NodeData& head = storage->nodes[child.first_child];
+        const NodeData& head = storage.nodes[child.first_child];
         if (head.type == ValueType::Atom && head.text == symbol)
-            return Node(storage, child_index);
+            return child_index;
 
         child_index = child.next_sibling;
     }
 
-    return {};
+    return invalid_node;
+}
+
+std::uint32_t find_child_index(const ParseStorage& storage,
+                               std::uint32_t list_index,
+                               const NodeData& list,
+                               std::string_view symbol) {
+    if (list.child_count < indexed_child_threshold)
+        return find_child_index_direct(storage, list, symbol);
+
+    if (!storage.child_indexes)
+        storage.child_indexes =
+            std::make_unique<std::unordered_map<std::uint32_t, std::vector<KeyIndexEntry>>>();
+
+    auto& child_indexes = *storage.child_indexes;
+    auto it = child_indexes.find(list_index);
+    if (it == child_indexes.end())
+        it = child_indexes.emplace(list_index, build_child_index(storage, list)).first;
+
+    const std::vector<KeyIndexEntry>& entries = it->second;
+    auto entry = std::lower_bound(entries.begin(),
+                                  entries.end(),
+                                  symbol,
+                                  [](const KeyIndexEntry& item, std::string_view key) {
+                                      return item.key < key;
+                                  });
+    if (entry != entries.end() && entry->key == symbol)
+        return entry->child;
+
+    return invalid_node;
+}
+
+const NodeData* find_value_child(const ParseStorage& storage,
+                                 std::uint32_t list_index,
+                                 const NodeData& list,
+                                 std::string_view symbol) {
+    if (list.type != ValueType::List)
+        return nullptr;
+
+    std::uint32_t pair_index = find_child_index(storage, list_index, list, symbol);
+    if (pair_index == invalid_node || pair_index >= storage.nodes.size())
+        return nullptr;
+
+    const NodeData& pair = storage.nodes[pair_index];
+    if (pair.type != ValueType::List || pair.first_child == invalid_node)
+        return nullptr;
+
+    std::uint32_t value_index = storage.nodes[pair.first_child].next_sibling;
+    if (value_index == invalid_node || value_index >= storage.nodes.size())
+        return nullptr;
+
+    return &storage.nodes[value_index];
 }
 
 } // namespace
@@ -239,37 +296,23 @@ Node find_child(Node list, std::string_view symbol) {
     if (!storage || !list_data || list_data->type != ValueType::List)
         return {};
 
-    if (list_data->child_count < indexed_child_threshold)
-        return find_child_direct(storage, *list_data, symbol);
-
-    if (!storage->child_indexes)
-        storage->child_indexes =
-            std::make_unique<std::unordered_map<std::uint32_t, std::vector<KeyIndexEntry>>>();
-
-    auto& child_indexes = *storage->child_indexes;
-    auto it = child_indexes.find(list.index);
-    if (it == child_indexes.end())
-        it = child_indexes.emplace(list.index, build_child_index(*storage, *list_data)).first;
-
-    const std::vector<KeyIndexEntry>& entries = it->second;
-    for (const KeyIndexEntry& entry : entries) {
-        if (entry.key == symbol)
-            return Node(storage, entry.child);
-    }
-
-    return {};
+    std::uint32_t child_index = find_child_index(*storage, list.index, *list_data, symbol);
+    return Node(storage, child_index);
 }
 
 std::optional<int> extract_int(Node list, std::string_view symbol) {
-    Node node = find_child(list, symbol);
-    if (!node.valid() || node.child_count() < 2)
+    if (!list.storage)
         return std::nullopt;
 
-    Node value = node.second();
-    if (value.type() == ValueType::Atom && looks_like_integer(value.text())) {
+    const NodeData* list_data = list.data();
+    if (!list_data)
+        return std::nullopt;
+
+    const NodeData* value = find_value_child(*list.storage, list.index, *list_data, symbol);
+    if (value && value->type == ValueType::Atom && looks_like_integer(value->text)) {
         int parsed = 0;
-        const char* begin = value.text().data();
-        const char* end = begin + value.text().size();
+        const char* begin = value->text.data();
+        const char* end = begin + value->text.size();
         auto result = std::from_chars(begin, end, parsed);
         if (result.ec == std::errc{} && result.ptr == end)
             return parsed;
@@ -279,16 +322,19 @@ std::optional<int> extract_int(Node list, std::string_view symbol) {
 }
 
 std::optional<float> extract_float(Node list, std::string_view symbol) {
-    Node node = find_child(list, symbol);
-    if (!node.valid() || node.child_count() < 2)
+    if (!list.storage)
         return std::nullopt;
 
-    Node value = node.second();
-    if (value.type() == ValueType::Atom &&
-        (looks_like_float(value.text()) || looks_like_integer(value.text()))) {
+    const NodeData* list_data = list.data();
+    if (!list_data)
+        return std::nullopt;
+
+    const NodeData* value = find_value_child(*list.storage, list.index, *list_data, symbol);
+    if (value && value->type == ValueType::Atom &&
+        (looks_like_float(value->text) || looks_like_integer(value->text))) {
         float parsed = 0.0f;
-        const char* begin = value.text().data();
-        const char* end = begin + value.text().size();
+        const char* begin = value->text.data();
+        const char* end = begin + value->text.size();
         auto result = std::from_chars(begin, end, parsed);
         if (result.ec == std::errc{} && result.ptr == end)
             return parsed;
@@ -298,25 +344,31 @@ std::optional<float> extract_float(Node list, std::string_view symbol) {
 }
 
 std::optional<std::string> extract_string(Node list, std::string_view symbol) {
-    Node node = find_child(list, symbol);
-    if (!node.valid() || node.child_count() < 2)
+    if (!list.storage)
         return std::nullopt;
 
-    Node value = node.second();
-    if (value.type() == ValueType::String || value.type() == ValueType::Atom)
-        return std::string(value.text());
+    const NodeData* list_data = list.data();
+    if (!list_data)
+        return std::nullopt;
+
+    const NodeData* value = find_value_child(*list.storage, list.index, *list_data, symbol);
+    if (value && (value->type == ValueType::String || value->type == ValueType::Atom))
+        return std::string(value->text);
 
     return std::nullopt;
 }
 
 std::optional<std::string_view> extract_string_view(Node list, std::string_view symbol) {
-    Node node = find_child(list, symbol);
-    if (!node.valid() || node.child_count() < 2)
+    if (!list.storage)
         return std::nullopt;
 
-    Node value = node.second();
-    if (value.type() == ValueType::String || value.type() == ValueType::Atom)
-        return value.text();
+    const NodeData* list_data = list.data();
+    if (!list_data)
+        return std::nullopt;
+
+    const NodeData* value = find_value_child(*list.storage, list.index, *list_data, symbol);
+    if (value && (value->type == ValueType::String || value->type == ValueType::Atom))
+        return value->text;
 
     return std::nullopt;
 }

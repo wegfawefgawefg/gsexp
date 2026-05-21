@@ -23,38 +23,38 @@ Older optimization plans and detailed results are archived in
 
 ## Current Results
 
-Latest verified Plan 6 results on this machine:
+Latest verified Plan 7 results on this machine:
 
 | Case | Result |
 | --- | ---: |
-| assets_10k | 190.74 MiB/s |
-| assets_50k | 167.35 MiB/s |
-| asset_database_5k | 225.87 MiB/s |
-| small_files_1k | 173.54 MiB/s |
-| strings_plain_5k | 446.10 MiB/s |
-| strings_escaped_5k | 274.29 MiB/s |
-| deep_1k | 176.89 MiB/s |
-| wide_10k | 240.74 MiB/s |
-| query_assets_10k | 14.92M queries/s |
-| query_first_10k | 11.45M queries/s |
-| query_last_10k | 7.47M queries/s |
-| query_missing_10k | 9.65M queries/s |
-| query_string_view_10k | 13.25M queries/s |
-| query_many_keys_last | 3.47M queries/s |
+| assets_10k | 198.68 MiB/s |
+| assets_50k | 177.47 MiB/s |
+| asset_database_5k | 267.81 MiB/s |
+| small_files_1k | 179.78 MiB/s |
+| strings_plain_5k | 914.77 MiB/s |
+| strings_escaped_5k | 307.47 MiB/s |
+| deep_1k | 184.29 MiB/s |
+| wide_10k | 289.02 MiB/s |
+| query_assets_10k | 15.99M queries/s |
+| query_first_10k | 12.05M queries/s |
+| query_last_10k | 7.83M queries/s |
+| query_missing_10k | 10.10M queries/s |
+| query_string_view_10k | 13.96M queries/s |
+| query_many_keys_last | 4.13M queries/s |
 
 Plan 6 yyjson comparison results:
 
 | Equivalent case | gsexp | yyjson | yyjson/gsexp |
 | --- | ---: | ---: | ---: |
-| assets_10k parse | 190.74 MiB/s | 659.84 MiB/s | 3.46x |
-| assets_50k parse | 167.35 MiB/s | 632.48 MiB/s | 3.78x |
-| asset_database_5k parse | 225.87 MiB/s | 743.61 MiB/s | 3.29x |
-| small_files_1k parse | 173.54 MiB/s | 553.14 MiB/s | 3.19x |
-| strings_plain_5k parse | 446.10 MiB/s | 1447.86 MiB/s | 3.25x |
-| strings_escaped_5k parse | 274.29 MiB/s | 1294.42 MiB/s | 4.72x |
-| wide_10k parse | 240.74 MiB/s | 836.61 MiB/s | 3.48x |
-| assets_10k lookup | 14.92M queries/s | 63.50M queries/s | 4.26x |
-| many_keys_last lookup | 3.47M queries/s | 7.70M queries/s | 2.22x |
+| assets_10k parse | 198.68 MiB/s | 675.59 MiB/s | 3.40x |
+| assets_50k parse | 177.47 MiB/s | 700.65 MiB/s | 3.95x |
+| asset_database_5k parse | 267.81 MiB/s | 812.83 MiB/s | 3.03x |
+| small_files_1k parse | 179.78 MiB/s | 572.67 MiB/s | 3.19x |
+| strings_plain_5k parse | 914.77 MiB/s | 1288.46 MiB/s | 1.41x |
+| strings_escaped_5k parse | 307.47 MiB/s | 1248.00 MiB/s | 4.06x |
+| wide_10k parse | 289.02 MiB/s | 847.52 MiB/s | 2.93x |
+| assets_10k lookup | 15.99M queries/s | 58.21M queries/s | 3.64x |
+| many_keys_last lookup | 4.13M queries/s | 7.70M queries/s | 1.86x |
 
 These are equivalent data shapes, not byte-identical files. The JSON fixtures
 are generated beside the S-expression fixtures and measured by each format's
@@ -102,6 +102,32 @@ Plan 6 optimization attempt results:
 | Density-aware node reserve, first version | Rejected. It reduced memory on string-heavy files, but changed dense/small/deep reserves too aggressively and hurt `small_files_1k` and `deep_1k`. |
 | Density-aware node reserve, gated version | Kept. `strings_plain_5k` retained storage dropped from about 10.1 MiB to 3.0 MiB and `strings_escaped_5k` dropped from about 12.3 MiB to 4.3 MiB. Dense and small inputs keep the old reserve. |
 | Benchmark-only SSE2 delimiter scan probe | Measured, not integrated. On `asset_database_5k`, scalar delimiter counting reached 863.18 MiB/s and SSE2 reached 1696.90 MiB/s, a 1.97x raw scan speedup. Parser integration still needs separate proof because parsing also maintains structure, diagnostics, and line/column state. |
+
+Important Plan 7 retained changes:
+
+1. Parser diagnostics now keep byte offsets during successful parsing and
+   compute exact line/column only when an error is emitted.
+2. Exact parser diagnostic positions are covered by tests.
+3. Query extraction helpers use an internal value-child fast path while keeping
+   the public API unchanged.
+4. Atom scanning and plain-string scanning use an internal SSE2 path on x86
+   builds with scalar fallback.
+5. Wide child indexes are sorted and searched with `lower_bound`.
+6. Escaped-string decoded storage starts with a smaller conservative reserve.
+7. Tokenization and string quoting moved to `src/tokenize.cpp` to keep parser
+   source size under the project guideline.
+
+Plan 7 optimization attempt results:
+
+| Attempt | Result |
+| --- | --- |
+| Lazy diagnostic line/column computation | Kept. Exact diagnostics still pass tests. Parse throughput improved across the main parse cases, including `assets_10k`, `asset_database_5k`, `small_files_1k`, and `wide_10k`. |
+| Query helper value-child fast path | Kept. Public helpers remain unchanged. `query_first_10k`, `query_string_view_10k`, and common asset lookup improved versus the Plan 6 baseline. |
+| Integrated SSE2 atom/plain-string scanning | Kept. `strings_plain_5k` reached 914.77 MiB/s and `wide_10k` reached 289.02 MiB/s on the latest run. Scalar fallback remains available. |
+| Sorted lazy child indexes | Kept. Wide-key lookup improved versus the Plan 6 baseline, though results are still noisy and yyjson remains faster. |
+| Retained `last_child` in `NodeData` | Rejected. It increased retained node storage substantially and hurt lookup throughput, so the parse-only `last_children` side vector was restored. |
+| Smaller decoded string reserve | Kept. `strings_escaped_5k` retained storage dropped from about 4.5 MB to 4.2 MB with similar throughput. |
+| yyjson source review | Completed. Useful takeaways: yyjson keeps compact 16-byte values, separates trivia skipping from hot value reads, and `yyjson_obj_getn` is still a linear object scan. The local query gap is therefore not because yyjson uses a magic hash table in the compared API. |
 
 ## Optimization Plan 7
 

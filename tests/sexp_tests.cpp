@@ -76,6 +76,20 @@ void test_errors_and_roots() {
     gsexp::ParseResult missing = gsexp::parse("(root");
     require(!missing.ok, "missing paren fails");
     require(!missing.diagnostics.empty(), "missing paren diagnostic");
+    require(missing.diagnostics[0].line == 1, "missing paren line");
+    require(missing.diagnostics[0].column == 1, "missing paren column");
+
+    gsexp::ParseResult unexpected = gsexp::parse("\n  )");
+    require(!unexpected.ok, "unexpected paren fails");
+    require(!unexpected.diagnostics.empty(), "unexpected paren diagnostic");
+    require(unexpected.diagnostics[0].line == 2, "unexpected paren line");
+    require(unexpected.diagnostics[0].column == 3, "unexpected paren column");
+
+    gsexp::ParseResult string = gsexp::parse("(root\n  \"unterminated)");
+    require(!string.ok, "unterminated string fails");
+    require(!string.diagnostics.empty(), "unterminated string diagnostic");
+    require(string.diagnostics[0].line == 2, "unterminated string line");
+    require(string.diagnostics[0].column == 3, "unterminated string column");
 
     gsexp::ParseResult roots = gsexp::parse("(a 1) (b 2)");
     require(roots.ok, "parse multiple roots");

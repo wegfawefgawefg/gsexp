@@ -120,6 +120,10 @@ class Node {
     friend class ChildIterator;
     friend class ChildRange;
     friend Node find_child(Node list, std::string_view symbol);
+    friend std::optional<int> extract_int(Node list, std::string_view symbol);
+    friend std::optional<float> extract_float(Node list, std::string_view symbol);
+    friend std::optional<std::string> extract_string(Node list, std::string_view symbol);
+    friend std::optional<std::string_view> extract_string_view(Node list, std::string_view symbol);
 
     const NodeData* data() const;
 

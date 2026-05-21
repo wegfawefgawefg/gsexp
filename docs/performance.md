@@ -27,43 +27,43 @@ Latest verified Plan 11 results on this machine:
 
 | Case | Result |
 | --- | ---: |
-| assets_10k | 236.79 MiB/s |
-| assets_50k | 210.12 MiB/s |
-| asset_database_5k | 289.31 MiB/s |
-| asset_database_5k_owned | 292.85 MiB/s |
-| asset_database_5k_file_read | 392.73 MiB/s |
-| asset_database_5k_file_owned | 160.07 MiB/s |
-| small_files_1k | 168.06 MiB/s |
-| strings_plain_5k | 968.81 MiB/s |
-| strings_escaped_5k | 658.01 MiB/s |
-| deep_1k | 212.57 MiB/s |
-| code_forms_2k | 232.81 MiB/s |
-| wide_10k | 301.75 MiB/s |
-| query_assets_10k | 16.00M queries/s |
-| query_first_10k | 13.89M queries/s |
-| query_last_10k | 8.59M queries/s |
-| query_missing_10k | 13.52M queries/s |
-| query_string_view_10k | 16.06M queries/s |
-| query_text_only_10k | 45.61M queries/s |
-| query_symbol_compare_10k | 42.85M queries/s |
-| query_many_keys_last | 5.51M queries/s |
-| query_find_many_keys_last | 5.49M queries/s |
-| query_child_at_many_keys_last | 5.03M queries/s |
+| assets_10k | 232.11 MiB/s |
+| assets_50k | 207.78 MiB/s |
+| asset_database_5k | 270.67 MiB/s |
+| asset_database_5k_owned | 289.12 MiB/s |
+| asset_database_5k_file_read | 374.27 MiB/s |
+| asset_database_5k_file_owned | 160.85 MiB/s |
+| small_files_1k | 178.81 MiB/s |
+| strings_plain_5k | 966.56 MiB/s |
+| strings_escaped_5k | 654.89 MiB/s |
+| deep_1k | 213.56 MiB/s |
+| code_forms_2k | 241.91 MiB/s |
+| wide_10k | 335.26 MiB/s |
+| query_assets_10k | 16.71M queries/s |
+| query_first_10k | 13.67M queries/s |
+| query_last_10k | 8.50M queries/s |
+| query_missing_10k | 14.17M queries/s |
+| query_string_view_10k | 14.42M queries/s |
+| query_text_only_10k | 43.89M queries/s |
+| query_symbol_compare_10k | 39.43M queries/s |
+| query_many_keys_last | 6.33M queries/s |
+| query_find_many_keys_last | 5.66M queries/s |
+| query_child_at_many_keys_last | 6.29M queries/s |
 
 Latest yyjson comparison results:
 
 | Equivalent case | gsexp | yyjson | yyjson/gsexp |
 | --- | ---: | ---: | ---: |
-| assets_10k parse | 236.79 MiB/s | 657.08 MiB/s | 2.77x |
-| assets_50k parse | 210.12 MiB/s | 652.96 MiB/s | 3.11x |
-| asset_database_5k parse | 289.31 MiB/s | 759.67 MiB/s | 2.63x |
-| small_files_1k parse | 168.06 MiB/s | 591.17 MiB/s | 3.52x |
-| strings_plain_5k parse | 968.81 MiB/s | 1459.88 MiB/s | 1.51x |
-| strings_escaped_5k parse | 658.01 MiB/s | 1204.36 MiB/s | 1.83x |
-| code_forms_2k parse | 232.81 MiB/s | 650.14 MiB/s | 2.79x |
-| wide_10k parse | 301.75 MiB/s | 856.31 MiB/s | 2.84x |
-| assets_10k lookup | 16.00M queries/s | 105.02M queries/s | 6.56x |
-| many_keys_last lookup | 5.51M queries/s | 12.01M queries/s | 2.18x |
+| assets_10k parse | 232.11 MiB/s | 646.66 MiB/s | 2.79x |
+| assets_50k parse | 207.78 MiB/s | 642.14 MiB/s | 3.09x |
+| asset_database_5k parse | 270.67 MiB/s | 750.11 MiB/s | 2.77x |
+| small_files_1k parse | 178.81 MiB/s | 575.91 MiB/s | 3.22x |
+| strings_plain_5k parse | 966.56 MiB/s | 1461.39 MiB/s | 1.51x |
+| strings_escaped_5k parse | 654.89 MiB/s | 1177.56 MiB/s | 1.80x |
+| code_forms_2k parse | 241.91 MiB/s | 641.05 MiB/s | 2.65x |
+| wide_10k parse | 335.26 MiB/s | 824.05 MiB/s | 2.46x |
+| assets_10k lookup | 16.71M queries/s | 126.28M queries/s | 7.56x |
+| many_keys_last lookup | 6.33M queries/s | 12.30M queries/s | 1.94x |
 
 These are equivalent data shapes, not byte-identical files. The JSON fixtures
 are generated beside the S-expression fixtures and measured by each format's
@@ -223,11 +223,11 @@ walk, faster to query, and closer to contiguous memory.
 
 Current gap during Plan 11:
 
-1. `assets_10k` parse is about 2.77x behind yyjson on the latest Plan 11 run.
-2. `asset_database_5k` parse is about 2.63x behind yyjson.
-3. `code_forms_2k` parse is about 2.79x behind yyjson.
-4. `assets_10k` lookup is about 6.56x behind yyjson.
-5. `many_keys_last` lookup is about 2.18x behind yyjson.
+1. `assets_10k` parse is about 2.79x behind yyjson on the latest Plan 11 run.
+2. `asset_database_5k` parse is about 2.77x behind yyjson.
+3. `code_forms_2k` parse is about 2.65x behind yyjson.
+4. `assets_10k` lookup is about 7.56x behind yyjson.
+5. `many_keys_last` lookup is about 1.94x behind yyjson.
 6. The public API is now clean enough that internal representation churn should
    not force another user-facing rewrite.
 
@@ -266,6 +266,7 @@ Attempt results so far:
 | Head-only symbol interning with unordered map | Rejected. Interning only first-child atom heads gave lookup a possible symbol-ID path, but parse cost and retained storage dominated. `assets_10k` parse fell to 158.18 MiB/s, `asset_database_5k` fell to 138.80 MiB/s, `code_forms_2k` fell to 123.59 MiB/s, and `assets_10k` retained approximate bytes rose from about 8.26 MB to 9.31 MB because every node carried a side-vector symbol slot. The implementation was removed. |
 | 16-bit dense child-index lookup table | Kept. The dense `list_index -> cache_index` table now stores 16-bit cache ids with a direct-scan fallback if more than 65k wide indexes are built. This keeps the O(1) lookup shape that beat the compact sorted table while reducing `query_many_keys_last` retained approximate bytes from about 12.66 MB to 11.92 MB. The measured wide lookup cases stayed in the same range: `query_many_keys_last` 5.51M queries/s, `query_find_many_keys_last` 5.49M queries/s, and `query_child_at_many_keys_last` 5.03M queries/s. |
 | Child-index lookup byte stats | Kept. Benchmark stats now print `child_index_lookup_bytes` separately from capacity so memory changes to the dense lookup table are visible without inferring element size from the implementation. This is measurement support, not a parser behavior change. |
+| Materialized wide-index key offsets | Kept. Wide child-index entries now store source offset and size for the key instead of the head node index. This avoids chasing the head node and using the general `node_text()` path during indexed binary search. It increases `query_many_keys_last` retained approximate bytes from about 11.92 MB to 12.40 MB, but the measured wide lookup cases improved enough to keep it: `query_many_keys_last` 6.33M queries/s, `query_find_many_keys_last` 5.66M queries/s, and `query_child_at_many_keys_last` 6.29M queries/s. |
 
 Work order:
 

@@ -55,6 +55,16 @@ bool node_text_equals(const ParseStorage& storage, const NodeData& node, std::st
     return std::memcmp(storage.source.data() + node.text_offset, text.data(), text.size()) == 0;
 }
 
+std::string_view index_key_text(const ParseStorage& storage, const KeyIndexEntry& entry) {
+    if (entry.key_offset > storage.source.size())
+        return {};
+    std::size_t available = storage.source.size() - entry.key_offset;
+    std::size_t size = entry.key_size;
+    if (size > available)
+        size = available;
+    return std::string_view(storage.source.data() + entry.key_offset, size);
+}
+
 std::vector<KeyIndexEntry> build_child_index(const ParseStorage& storage, const NodeData& list) {
     std::vector<KeyIndexEntry> entries;
     if (list.child_count < indexed_child_threshold)
@@ -74,13 +84,13 @@ std::vector<KeyIndexEntry> build_child_index(const ParseStorage& storage, const 
         if (child.type == ValueType::List && child.first_child != invalid_node) {
             const NodeData& head = storage.nodes[child.first_child];
             if (head.type == ValueType::Atom)
-                entries.push_back(KeyIndexEntry{child.first_child, child_index});
+                entries.push_back(KeyIndexEntry{head.text_offset, head.text_size, child_index});
         }
         child_index = child.next_sibling;
     }
 
     std::stable_sort(entries.begin(), entries.end(), [&storage](const KeyIndexEntry& a, const KeyIndexEntry& b) {
-        return node_text(storage, storage.nodes[a.head]) < node_text(storage, storage.nodes[b.head]);
+        return index_key_text(storage, a) < index_key_text(storage, b);
     });
     return entries;
 }
@@ -141,9 +151,9 @@ std::uint32_t find_child_index(const ParseStorage& storage,
                                   entries.end(),
                                   searched_head,
                                   [&storage](const KeyIndexEntry& item, std::string_view key) {
-                                      return node_text(storage, storage.nodes[item.head]) < key;
+                                      return index_key_text(storage, item) < key;
                                   });
-    if (entry != entries.end() && node_text(storage, storage.nodes[entry->head]) == searched_head)
+    if (entry != entries.end() && index_key_text(storage, *entry) == searched_head)
         return entry->child;
 
     return invalid_node;

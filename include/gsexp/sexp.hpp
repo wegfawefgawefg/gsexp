@@ -62,7 +62,8 @@ struct NodeData {
 };
 
 struct KeyIndexEntry {
-    std::uint32_t head = invalid_node;
+    std::uint32_t key_offset = 0;
+    std::uint32_t key_size = 0;
     std::uint32_t child = invalid_node;
 };
 

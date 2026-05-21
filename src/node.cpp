@@ -7,6 +7,8 @@
 namespace gsexp {
 namespace {
 
+constexpr std::uint16_t child_count_overflow_marker = 0xffffu;
+
 std::string_view node_text(const ParseStorage& storage, const NodeData& node) {
     if (node.text_size == 0)
         return {};
@@ -55,6 +57,20 @@ bool node_text_equals(const ParseStorage& storage, const NodeData& node, std::st
     return std::memcmp(data, text.data(), text.size()) == 0;
 }
 
+std::size_t full_child_count(const ParseStorage& storage,
+                             const NodeData& node,
+                             std::uint32_t node_index) {
+    if (node.child_count != child_count_overflow_marker)
+        return node.child_count;
+
+    for (const ChildCountOverflow& item : storage.child_count_overflows) {
+        if (item.node == node_index)
+            return item.count;
+    }
+
+    return child_count_overflow_marker;
+}
+
 } // namespace
 
 std::size_t ParseResult::root_count() const {
@@ -94,6 +110,7 @@ StorageStats ParseResult::storage_stats() const {
 
     stats.approximate_bytes = storage->source.capacity() +
                               storage->nodes.capacity() * sizeof(NodeData) +
+                              storage->child_count_overflows.capacity() * sizeof(ChildCountOverflow) +
                               storage->decoded_text.capacity() +
                               stats.child_index_capacity * sizeof(ChildIndexCache) +
                               stats.child_index_lookup_capacity * sizeof(std::uint32_t) +
@@ -130,7 +147,7 @@ std::size_t Node::child_count() const {
     const NodeData* node = data();
     if (!node)
         return 0;
-    return node->child_count;
+    return full_child_count(*storage, *node, index);
 }
 
 Node Node::first_child() const {

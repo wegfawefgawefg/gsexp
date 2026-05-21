@@ -13,6 +13,7 @@
 namespace gsexp {
 namespace {
 
+constexpr std::uint16_t child_count_overflow_marker = 0xffffu;
 constexpr std::size_t reserve_sample_bytes = 16 * 1024;
 constexpr std::size_t reserve_min_nodes = 64;
 constexpr std::size_t reserve_slack_nodes = 16;
@@ -253,10 +254,28 @@ class Parser {
                 storage->nodes[last_children[parent]].next_sibling = node_index;
             }
             last_children[parent] = node_index;
-            ++parent_node.child_count;
+            increment_child_count(parent);
         }
 
         return node_index;
+    }
+
+    void increment_child_count(std::uint32_t parent) {
+        NodeData& parent_node = storage->nodes[parent];
+        if (parent_node.child_count < child_count_overflow_marker) {
+            ++parent_node.child_count;
+            return;
+        }
+
+        for (ChildCountOverflow& item : storage->child_count_overflows) {
+            if (item.node == parent) {
+                ++item.count;
+                return;
+            }
+        }
+
+        storage->child_count_overflows.push_back(
+            ChildCountOverflow{parent, static_cast<std::uint32_t>(child_count_overflow_marker) + 1u});
     }
 
     void add_error(std::vector<Diagnostic>& diagnostics,

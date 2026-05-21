@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <limits>
+#include <string>
 
 namespace {
 
@@ -155,6 +156,21 @@ void test_errors_and_roots() {
     require(roots.root(1).child_at(0).is_atom("b"), "second root is b");
 }
 
+void test_large_child_count_overflow() {
+    constexpr int child_count = 70000;
+    std::string text;
+    text.reserve(static_cast<std::size_t>(child_count) * 2 + 8);
+    text += "(root";
+    for (int index = 0; index < child_count; ++index)
+        text += " a";
+    text += ")";
+
+    gsexp::ParseResult result = gsexp::parse(text);
+    require(result.ok, "parse large child count input");
+    require(result.root(0).child_count() == static_cast<std::size_t>(child_count + 1),
+            "large child count remains exact");
+}
+
 } // namespace
 
 int main() {
@@ -166,6 +182,7 @@ int main() {
     test_numeric_rejections();
     test_failed_escaped_string_rollback();
     test_errors_and_roots();
+    test_large_child_count_overflow();
 
     std::cout << "gsexp_tests passed\n";
     return 0;

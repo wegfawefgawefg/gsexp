@@ -55,7 +55,7 @@ struct NodeData {
     std::uint32_t text_size = 0;
     std::uint32_t first_child = invalid_node;
     std::uint32_t next_sibling = invalid_node;
-    std::uint32_t child_count = 0;
+    std::uint16_t child_count = 0;
     ValueType type = ValueType::List;
     TextStorage text_storage = TextStorage::Source;
 };
@@ -70,11 +70,17 @@ struct ChildIndexCache {
     std::vector<KeyIndexEntry> entries;
 };
 
+struct ChildCountOverflow {
+    std::uint32_t node = invalid_node;
+    std::uint32_t count = 0;
+};
+
 struct ParseStorage {
     std::string source;
     std::vector<char> decoded_text;
     std::size_t decoded_string_count = 0;
     std::vector<NodeData> nodes;
+    std::vector<ChildCountOverflow> child_count_overflows;
     mutable std::vector<ChildIndexCache> child_indexes;
     mutable std::vector<std::uint32_t> child_index_lookup;
 };

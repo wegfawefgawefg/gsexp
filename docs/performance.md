@@ -231,6 +231,19 @@ Current gap during Plan 11:
 6. The public API is now clean enough that internal representation churn should
    not force another user-facing rewrite.
 
+Public API direction:
+
+1. Keep one normal consumption path: `parse`/`parse_owned`, then `Node` and
+   `FormView`.
+2. Do not add a second public batch/cursor API just to win benchmarks. yyjson's
+   compared path uses normal repeated object lookup; `gsexp` should make normal
+   `FormView::get_*` calls competitive.
+3. Benchmark-only scan-once or cursor experiments are allowed only to identify
+   the ceiling and bottleneck. If they win, the production fix should be
+   internal state, storage-owned caches, or representation changes behind the
+   existing `FormView` API unless there is strong evidence users need a new
+   public shape.
+
 Attempt results so far:
 
 | Attempt | Result |
@@ -329,31 +342,50 @@ Work order:
    The policy should stay simple: direct below a threshold, indexed above it,
    or no index if symbol-ID scans are already fast.
 
-9. Numeric parse specialization.
-   Try small custom parsers for common integer and simple decimal float shapes.
-   Keep exact rejection behavior covered by tests. Reject if `from_chars` is
-   still faster or if correctness gets harder to reason about.
+9. Stateful `FormView` internals without a second public API.
+   Revisit state after the rejected per-view heap-vector cache. Try designs
+   that keep `FormView::get_*` as the user-facing API while avoiding repeated
+   scans on the same form: tiny inline state, storage-owned lazy per-form
+   caches, fixed-size small-form indexes, or scan-progress helpers. Reject
+   designs that allocate per view or require users to call a new batch API.
 
-10. Scanner success-path rewrite.
+10. Scan-once small-form benchmark probe.
+    Add a benchmark-only path that walks each asset form once and extracts
+    `id`, `x`, `y`, and `path`. This is a ceiling test for the repeated-scan
+    bottleneck, not a proposed public API. If it closes most of the yyjson gap,
+    optimize normal `FormView::get_*` calls using internal state.
+
+11. Numeric parse specialization.
+    Try small custom parsers for common integer and simple decimal float shapes.
+    Keep exact rejection behavior covered by tests. Reject if `from_chars` is
+    still faster or if correctness gets harder to reason about.
+
+12. Lazy numeric metadata.
+    Preserve atom-first semantics, but try storage-owned numeric classification
+    or conversion caches so repeated `get_int()` and `get_float()` do not
+    re-validate and re-convert the same atom text. Keep this behind the normal
+    `FormView::get_*` API.
+
+13. Scanner success-path rewrite.
     Tighten whitespace/comment/atom/string scanning after the representation
     change. Separate syntax scanning from tree construction enough that hot
     loops stay simple. Preserve diagnostics.
 
-11. SIMD integration.
+14. SIMD integration.
     Integrate the existing SSE2 delimiter/string scan proof only after scalar
     representation changes settle. SIMD remains optional with scalar fallback.
     Benchmark parse cases and compile portability.
 
-12. Allocation discipline.
+15. Allocation discipline.
     Reduce growth churn across nodes, child indices, decoded text, symbol table,
     and lazy indexes. Prefer flat arenas over per-list heap allocations.
 
-13. Real workload fixtures.
+16. Real workload fixtures.
     Add larger and more realistic generated asset database cases, and later
     real project fixtures when available. Keep synthetic yyjson comparisons,
     but do not optimize solely for synthetic records.
 
-14. API audit after internals settle.
+17. API audit after internals settle.
     Keep `Node` and `FormView` public behavior stable. Only add public API if
     benchmarks prove users need explicit symbol handles or caller-side compiled
     keys.
@@ -383,100 +415,127 @@ Extended experiment queue:
    lookup inside `FormView`. Avoid exposed compiled-key handles unless measured
    repeated-call overhead proves they are necessary.
 
-5. Flat node arena with child spans.
+5. Stateful `FormView` with no heap allocation.
+   Reintroduce `FormView` state only if it avoids the rejected Plan 10 shape.
+   Candidate designs: fixed inline slots for a few cached key/value pairs,
+   last-scan position for repeated calls, or a pointer/id into storage-owned
+   cache data. The public call site must stay `form.get_int("id")`.
+
+6. Storage-owned small-form cache.
+   Keep small forms direct by default, but after repeated lookup on the same
+   form, build a compact cache in `ParseStorage` keyed by form node. Avoid eager
+   indexes for every form. Measure retained bytes and common one-off lookup.
+
+7. Scan-once benchmark-only probe.
+   Add a local benchmark helper that extracts multiple requested fields in one
+   child scan. Use it to decide whether repeated `FormView::get_*` scans are the
+   dominant `query_assets_10k` bottleneck. Do not expose it as public API unless
+   the normal API cannot be optimized enough.
+
+8. Small-form fixed index.
+   For common small records, try a fixed-size stack or inline sorted array for
+   head/value pairs. Keep only if it beats direct scan without heap allocation
+   and without adding caller-visible state.
+
+9. Lazy numeric value cache.
+   Store successful numeric conversions in parse storage or compact side tables
+   keyed by atom node. This should speed repeated `get_int()`/`get_float()` while
+   keeping atoms as the retained source representation.
+
+10. Flat node arena with child spans.
    Retry child spans with a cleaner construction strategy after other hot spots
    are measured. The first attempt proved that smaller nodes alone do not win
    if finalization and child lookup get slower.
 
-6. Parser event/tape builder.
+11. Parser event/tape builder.
    Try a parse-time tape or event stream that records list starts, atoms, and
    closes, then builds the retained tree in one predictable pass. Reject if it
    only adds another representation without removing cost elsewhere.
 
-7. One-pass retained builder.
+12. One-pass retained builder.
    Try building final child ranges directly while parsing, using stack frames
    that own contiguous output ranges. This is harder than sibling links but may
    remove the expensive finalization pass from the rejected child-span attempt.
 
-8. Atom scanner specialization.
+13. Atom scanner specialization.
    Split atom scanning into the common no-escape, no-comment, no-delimiter fast
    path and the slower diagnostic path. The hot loop should mostly advance over
    plain bytes and only branch at delimiters.
 
-9. String scanner specialization.
+14. String scanner specialization.
    Keep plain string views when no escapes are present and decode only escaped
    strings into `owned_text`. Measure plain and escaped strings separately, as
    they have very different ceilings.
 
-10. Whitespace and comment skipping.
+15. Whitespace and comment skipping.
     Tighten the skip loop because every benchmark pays it. Try simple
     table-driven classification before SIMD. Reject clever code if branch
     prediction already wins.
 
-11. Numeric token classification.
+16. Numeric token classification.
     Preserve atom-first semantics, but classify likely integer and decimal
     tokens cheaply enough that `FormView::get_int()` and `get_float()` avoid
     duplicate work. Add tests before changing accepted numeric shapes.
 
-12. Numeric conversion specialization.
+17. Numeric conversion specialization.
     Try custom integer conversion and simple decimal float conversion for common
     asset data. Keep `from_chars` fallback for correctness and uncommon shapes.
 
-13. Allocation reservation policy.
+18. Allocation reservation policy.
     Improve reserve estimates for nodes, owned text, child indexes, symbol
     tables, and lazy indexes. Track capacity in benchmark output so wins are not
     just hidden memory growth.
 
-14. Small-vector avoidance.
+19. Small-vector avoidance.
     Avoid per-form heap allocation in lazy indexes and temporary builder data.
     Prefer flat arenas or fixed-size stack buffers where the measured workload
     repeatedly builds small structures.
 
-15. Cache threshold tuning.
+20. Cache threshold tuning.
     Re-test the direct-scan versus lazy-index threshold after each
     representation change. The correct threshold may move once symbol IDs or
     flat indexes exist.
 
-16. Common asset lookup benchmark.
+21. Common asset lookup benchmark.
     Keep the current lookup benchmarks, but add fixtures that are not only
     record-shaped. The parser may later handle code-like input, so optimizing
     only `(asset (id ...) ...)` would be too narrow.
 
-17. Larger generated fixtures.
+22. Larger generated fixtures.
     Add larger asset databases, mixed strings, mixed numeric fields, deep forms,
     wide forms, and code-like forms. Compare both parse throughput and query
     throughput against yyjson equivalents where a JSON shape makes sense.
 
-18. Real fixture import.
+23. Real fixture import.
     Add real project data once available. Synthetic data is useful for drag
     races, but final decisions should also use files that resemble actual game
     assets and tool output.
 
-19. SIMD delimiter scan.
+24. SIMD delimiter scan.
     Add optional SSE2 delimiter scanning for atom and whitespace-heavy input
     after scalar scanner changes settle. Keep scalar fallback compiled and
     benchmarked.
 
-20. SIMD string scan.
+25. SIMD string scan.
     Add optional SIMD quote/backslash detection for long plain strings. This
     should target the plain string benchmark first and must not slow short
     strings.
 
-21. Memory layout audit.
+26. Memory layout audit.
     Recheck `sizeof(NodeData)`, vector capacities, and retained bytes after each
     kept change. A parse win that bloats retained memory needs a workload-based
     justification.
 
-22. Error-path audit.
+27. Error-path audit.
     Keep diagnostics useful while moving hot loops. Fast success paths are fine,
     but malformed input should still report practical file offsets and reasons.
 
-23. Public API audit.
+28. Public API audit.
     After internals settle, remove accidental exposure of implementation details
     and document the one normal consumption path. Avoid compatibility wrappers
-    because there are no external consumers yet.
+    or parallel public lookup APIs because there are no external consumers yet.
 
-24. Glayout integration check.
+29. Glayout integration check.
     Build `glayout` after any API or vendoring-impacting change. `glayout` is
     the current real consumer and should catch usability regressions earlier
     than synthetic benchmarks.
@@ -541,6 +600,8 @@ Rejected-by-default unless evidence changes:
 5. Dense bit-packed node formats that are painful to debug.
 6. Optimizing for yyjson validation-only numbers instead of retained tree plus
    lookup workloads.
+7. A second public batch/cursor lookup API before proving the normal
+   `FormView::get_*` API cannot be made competitive with internal state.
 
 ## Optimization Plan 10
 

@@ -122,6 +122,40 @@ inline std::uint32_t required_value_child(const gsexp::ParseStorage& storage, st
     return value_index;
 }
 
+inline std::uint32_t find_field(const gsexp::ParseStorage& storage,
+                                const gsexp::NodeData& form,
+                                std::string_view name) {
+    bool first = true;
+    std::uint32_t field_index = form.first_child;
+    while (field_index != gsexp::invalid_node && field_index < storage.nodes.size()) {
+        const gsexp::NodeData& field = storage.nodes[field_index];
+        if (first) {
+            first = false;
+            field_index = field.next_sibling;
+            continue;
+        }
+
+        if (field.type == gsexp::ValueType::List && field.first_child != gsexp::invalid_node &&
+            field.first_child < storage.nodes.size() && text_equals(storage, storage.nodes[field.first_child], name))
+            return field_index;
+
+        field_index = field.next_sibling;
+    }
+
+    return gsexp::invalid_node;
+}
+
+inline std::uint32_t required_field(const gsexp::ParseStorage& storage,
+                                    const gsexp::NodeData& form,
+                                    std::string_view name) {
+    std::uint32_t field_index = find_field(storage, form, name);
+    if (field_index == gsexp::invalid_node || field_index >= storage.nodes.size()) {
+        std::cerr << "internal asset database probe missing field\n";
+        std::exit(1);
+    }
+    return field_index;
+}
+
 inline double run_asset_query_once(const gsexp::ParseResult& result, int iterations) {
     const gsexp::ParseStorage& storage = *result.storage;
     std::uint32_t root_index = result.roots[0];
@@ -198,6 +232,82 @@ inline double run_asset_query_once(const gsexp::ParseResult& result, int iterati
     auto end = std::chrono::steady_clock::now();
     if (sink == 0.0) {
         std::cerr << "internal asset query probe did no work\n";
+        std::exit(1);
+    }
+    return std::chrono::duration<double>(end - start).count();
+}
+
+inline double run_asset_database_query_once(const gsexp::ParseResult& result, int iterations) {
+    const gsexp::ParseStorage& storage = *result.storage;
+    std::uint32_t root_index = result.roots[0];
+    if (root_index >= storage.nodes.size()) {
+        std::cerr << "internal asset database probe has invalid root\n";
+        std::exit(1);
+    }
+
+    double sink = 0.0;
+    auto start = std::chrono::steady_clock::now();
+    for (int iteration = 0; iteration < iterations; ++iteration) {
+        bool root_head = true;
+        std::uint32_t record_index = storage.nodes[root_index].first_child;
+        while (record_index != gsexp::invalid_node && record_index < storage.nodes.size()) {
+            const gsexp::NodeData& record = storage.nodes[record_index];
+            if (root_head) {
+                root_head = false;
+                record_index = record.next_sibling;
+                continue;
+            }
+
+            if (record.type != gsexp::ValueType::List || record.first_child == gsexp::invalid_node ||
+                record.first_child >= storage.nodes.size()) {
+                record_index = record.next_sibling;
+                continue;
+            }
+
+            const gsexp::NodeData& kind = storage.nodes[record.first_child];
+            bool texture = text_equals(storage, kind, "texture");
+            bool sound = text_equals(storage, kind, "sound");
+            bool prefab = text_equals(storage, kind, "prefab");
+            if (!texture && !sound && !prefab) {
+                record_index = record.next_sibling;
+                continue;
+            }
+
+            std::uint32_t id_value = required_value_child(storage, required_field(storage, record, "id"));
+            std::uint32_t path_value = required_value_child(storage, required_field(storage, record, "path"));
+            sink += static_cast<double>(node_text(storage, kind).size()) +
+                    static_cast<double>(node_text(storage, storage.nodes[id_value]).size()) +
+                    static_cast<double>(node_text(storage, storage.nodes[path_value]).size());
+
+            if (texture) {
+                std::uint32_t size_field = required_field(storage, record, "size");
+                const gsexp::NodeData& size = storage.nodes[size_field];
+                std::uint32_t w_value = required_value_child(storage, required_field(storage, size, "w"));
+                std::uint32_t h_value = required_value_child(storage, required_field(storage, size, "h"));
+                sink += static_cast<double>(parse_required_int(node_text(storage, storage.nodes[w_value])) +
+                                            parse_required_int(node_text(storage, storage.nodes[h_value])));
+            } else if (sound) {
+                std::uint32_t volume_value =
+                    required_value_child(storage, required_field(storage, record, "volume"));
+                std::uint32_t stream_value =
+                    required_value_child(storage, required_field(storage, record, "stream"));
+                sink += static_cast<double>(cached_required_float(storage, volume_value)) +
+                        static_cast<double>(node_text(storage, storage.nodes[stream_value]).size());
+            } else {
+                std::uint32_t bounds_field = required_field(storage, record, "bounds");
+                const gsexp::NodeData& bounds = storage.nodes[bounds_field];
+                std::uint32_t x_value = required_value_child(storage, required_field(storage, bounds, "x"));
+                std::uint32_t y_value = required_value_child(storage, required_field(storage, bounds, "y"));
+                sink += static_cast<double>(parse_required_int(node_text(storage, storage.nodes[x_value])) +
+                                            parse_required_int(node_text(storage, storage.nodes[y_value])));
+            }
+
+            record_index = record.next_sibling;
+        }
+    }
+    auto end = std::chrono::steady_clock::now();
+    if (sink == 0.0) {
+        std::cerr << "internal asset database probe did no work\n";
         std::exit(1);
     }
     return std::chrono::duration<double>(end - start).count();

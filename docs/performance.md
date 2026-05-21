@@ -51,7 +51,9 @@ Latest verified Plan 11 results on this machine:
 | query_text_only_10k | 46.34M queries/s |
 | query_symbol_compare_10k | 44.29M queries/s |
 | query_asset_database_5k | 22.57M queries/s |
+| query_internal_asset_database_5k | 44.78M queries/s |
 | query_asset_database_20k | 21.17M queries/s |
+| query_internal_asset_database_20k | 33.77M queries/s |
 | query_many_keys_last | 7.38M queries/s |
 | query_find_many_keys_last | 8.12M queries/s |
 | query_child_at_many_keys_last | 7.54M queries/s |
@@ -386,6 +388,7 @@ Attempt results so far:
 | `parse_value()` switch dispatch | Rejected. Replacing the ordered `if` chain in `parse_value()` with a `switch` on the current byte did not improve the parser hot path. The measured run regressed important parse fixtures: `strings_plain_5k` fell to 899.04 MiB/s, `code_forms_2k` fell to 227.63 MiB/s, `wide_10k` fell to 326.95 MiB/s, `asset_database_20k` fell to 278.34 MiB/s, and `assets_10k` was only 239.49 MiB/s. The original branch order was restored. |
 | Source-only `Node::is_atom()` helper | Rejected. `Node::is_atom()` tried using a source-backed atom comparison helper with bounds checks, matching the fact that parsed atoms are source-backed and avoiding the generic decoded-text branch. The measured query result was mixed and not worth specializing this public traversal path: `query_symbol_compare_10k` improved to 45.17M q/s and `query_asset_database_5k` reached 23.67M q/s, but `query_string_view_10k` fell to 13.49M q/s, `query_nested_find_arg_5k` fell to 21.31M q/s, and traversal fell to 42.29M visits/s. The generic checked text helper was restored. |
 | Larger mixed asset database query fixture | Kept. The benchmark suite now runs `query_asset_database_20k` and `yyjson_query_asset_database_20k`, using the existing 20k generated mixed asset database and the same total 5M query count as the 5k query case. First measured run: `gsexp` reached 21.17M q/s with about 20.07 MB retained after float cache allocation, while yyjson reached 77.52M q/s on the equivalent JSON fixture. This is measurement support for Plan 11 lookup work, not a parser behavior change. |
+| Internal mixed asset database query probe | Kept. The benchmark suite now includes `query_internal_asset_database_5k` and `query_internal_asset_database_20k`, benchmark-only probes that scan each mixed asset record once through `ParseStorage`/`NodeData` and extract the same fields as the public `FormView` query. First measured run: public `query_asset_database_5k` reached 21.47M q/s while the internal scan reached 44.78M q/s; public `query_asset_database_20k` reached 20.77M q/s while the internal scan reached 33.77M q/s. This confirms repeated `FormView` lookup remains a major mixed-database bottleneck, but the 20k ceiling also shows retained traversal and conversion costs still matter. |
 
 Current pending Plan 11 queue:
 

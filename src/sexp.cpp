@@ -296,19 +296,23 @@ class Parser {
 
     void skip_space_and_comments() {
         while (index < text.size()) {
-            char c = text[index];
-            if (is_space(c)) {
-                ++index;
-                continue;
-            }
-
-            if (c == ';' || c == '#') {
-                while (index < text.size() && text[index] != '\n')
+            switch (text[index]) {
+                case ' ':
+                case '\n':
+                case '\r':
+                case '\t':
+                case '\v':
+                case '\f':
                     ++index;
-                continue;
+                    continue;
+                case ';':
+                case '#':
+                    while (index < text.size() && text[index] != '\n')
+                        ++index;
+                    continue;
+                default:
+                    return;
             }
-
-            return;
         }
     }
 

@@ -432,6 +432,95 @@ void run_query_case(const char* name, const std::string& text, int items, int it
     print_storage_stats(name, result);
 }
 
+double run_asset_database_query_once(gsexp::Node root, int iterations) {
+    double sink = 0.0;
+
+    auto start = std::chrono::steady_clock::now();
+    for (int iteration = 0; iteration < iterations; ++iteration) {
+        bool first = true;
+        for (gsexp::Node record : root.children()) {
+            if (first) {
+                first = false;
+                continue;
+            }
+            if (!record.is_list())
+                continue;
+
+            gsexp::Node head = record.head();
+            if (!head.valid())
+                continue;
+            if (!head.is_atom("texture") && !head.is_atom("sound") && !head.is_atom("prefab"))
+                continue;
+
+            gsexp::FormView record_form(record);
+            std::optional<std::string_view> id = record_form.get_string_view("id");
+            std::optional<std::string_view> path = record_form.get_string_view("path");
+            if (!id || !path) {
+                std::cerr << "asset database query missing id/path\n";
+                std::exit(1);
+            }
+            sink += static_cast<double>(head.text().size()) + static_cast<double>(id->size()) +
+                    static_cast<double>(path->size());
+
+            if (head.is_atom("texture")) {
+                gsexp::FormView size(record_form.find("size"));
+                std::optional<int> w = size.get_int("w");
+                std::optional<int> h = size.get_int("h");
+                if (!w || !h) {
+                    std::cerr << "asset database texture query missing size\n";
+                    std::exit(1);
+                }
+                sink += static_cast<double>(*w + *h);
+            } else if (head.is_atom("sound")) {
+                std::optional<float> volume = record_form.get_float("volume");
+                std::optional<std::string_view> stream = record_form.get_string_view("stream");
+                if (!volume || !stream) {
+                    std::cerr << "asset database sound query missing volume/stream\n";
+                    std::exit(1);
+                }
+                sink += static_cast<double>(*volume) + static_cast<double>(stream->size());
+            } else {
+                gsexp::FormView bounds(record_form.find("bounds"));
+                std::optional<int> x = bounds.get_int("x");
+                std::optional<int> y = bounds.get_int("y");
+                if (!x || !y) {
+                    std::cerr << "asset database prefab query missing bounds\n";
+                    std::exit(1);
+                }
+                sink += static_cast<double>(*x + *y);
+            }
+        }
+    }
+    auto end = std::chrono::steady_clock::now();
+    if (sink == 0.0) {
+        std::cerr << "asset database query benchmark did no work\n";
+        std::exit(1);
+    }
+    return std::chrono::duration<double>(end - start).count();
+}
+
+void run_asset_database_query_case(const char* name, const std::string& text, int items, int iterations) {
+    gsexp::ParseResult result = gsexp::parse(text);
+    if (!result.ok || result.root_count() == 0) {
+        std::cerr << "parse failed before asset database query benchmark: " << name << "\n";
+        std::exit(1);
+    }
+
+    double best_seconds = 0.0;
+    for (int run = 0; run < 3; ++run) {
+        double seconds = run_asset_database_query_once(result.root(0), iterations);
+        if (best_seconds == 0.0 || seconds < best_seconds)
+            best_seconds = seconds;
+    }
+
+    std::size_t queries = static_cast<std::size_t>(items) * static_cast<std::size_t>(iterations) * 5u;
+    double queries_per_second = static_cast<double>(queries) / best_seconds;
+    std::cout << name << " items=" << items << " queries=" << queries
+              << " best_of=3 seconds=" << best_seconds
+              << " queries_per_second=" << queries_per_second << "\n";
+    print_storage_stats(name, result);
+}
+
 double run_child_iteration_once(gsexp::Node root, int iterations) {
     double sink = 0.0;
 
@@ -527,6 +616,7 @@ int main() {
     run_query_case("query_string_view_10k", assets_10k, 10000, 500, QueryMode::StringView);
     run_query_case("query_text_only_10k", assets_10k, 10000, 200, QueryMode::TextOnly);
     run_query_case("query_symbol_compare_10k", assets_10k, 10000, 200, QueryMode::SymbolCompare);
+    run_asset_database_query_case("query_asset_database_5k", asset_database_5k, 5000, 200);
     run_child_iteration_case("iterate_assets_10k", assets_10k, 10000, 200);
     std::string many_keys_data = data::make_many_keys_data(5000, 24);
     run_query_case("query_many_keys_last", many_keys_data, 5000, 200, QueryMode::ManyLast);
@@ -544,6 +634,10 @@ int main() {
     yyjson_bench::run_parse_case("yyjson_code_forms_2k", code_json_2k, 50);
     yyjson_bench::run_parse_case("yyjson_wide_10k", wide_json_10k, 50);
     yyjson_bench::run_query_case("yyjson_query_assets_10k", asset_json_10k, "assets", 10000, 100, false);
+    yyjson_bench::run_asset_database_query_case("yyjson_query_asset_database_5k",
+                                                asset_database_json_5k,
+                                                5000,
+                                                200);
     yyjson_bench::run_query_case("yyjson_query_many_keys_last", many_keys_json, "records", 5000, 200, true);
 #endif
     return 0;

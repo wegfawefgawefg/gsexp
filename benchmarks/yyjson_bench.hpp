@@ -155,6 +155,53 @@ inline double run_many_key_query_once(yyjson_val* records, int iterations) {
     return std::chrono::duration<double>(end - start).count();
 }
 
+inline double run_asset_database_query_once(yyjson_val* records, int iterations) {
+    double sink = 0.0;
+
+    auto start = std::chrono::steady_clock::now();
+    for (int iteration = 0; iteration < iterations; ++iteration) {
+        yyjson_arr_iter iter = yyjson_arr_iter_with(records);
+        yyjson_val* record = nullptr;
+        while ((record = yyjson_arr_iter_next(&iter))) {
+            yyjson_val* kind = require_member(record, "kind", "yyjson_query_asset_database_5k");
+            yyjson_val* id = require_member(record, "id", "yyjson_query_asset_database_5k");
+            yyjson_val* path = require_member(record, "path", "yyjson_query_asset_database_5k");
+            const char* kind_text = yyjson_get_str(kind);
+            const char* id_text = yyjson_get_str(id);
+            const char* path_text = yyjson_get_str(path);
+            if (!kind_text || !id_text || !path_text) {
+                std::cerr << "yyjson asset database query expected string fields\n";
+                std::exit(1);
+            }
+
+            sink += static_cast<double>(std::strlen(kind_text)) + static_cast<double>(std::strlen(id_text)) +
+                    static_cast<double>(std::strlen(path_text));
+
+            if (std::strcmp(kind_text, "texture") == 0) {
+                yyjson_val* size = require_member(record, "size", "yyjson_query_asset_database_5k");
+                yyjson_val* w = require_member(size, "w", "yyjson_query_asset_database_5k");
+                yyjson_val* h = require_member(size, "h", "yyjson_query_asset_database_5k");
+                sink += static_cast<double>(yyjson_get_int(w) + yyjson_get_int(h));
+            } else if (std::strcmp(kind_text, "sound") == 0) {
+                yyjson_val* volume = require_member(record, "volume", "yyjson_query_asset_database_5k");
+                yyjson_val* stream = require_member(record, "stream", "yyjson_query_asset_database_5k");
+                sink += yyjson_get_num(volume) + (yyjson_get_bool(stream) ? 4.0 : 5.0);
+            } else {
+                yyjson_val* bounds = require_member(record, "bounds", "yyjson_query_asset_database_5k");
+                yyjson_val* x = require_member(bounds, "x", "yyjson_query_asset_database_5k");
+                yyjson_val* y = require_member(bounds, "y", "yyjson_query_asset_database_5k");
+                sink += static_cast<double>(yyjson_get_int(x) + yyjson_get_int(y));
+            }
+        }
+    }
+    auto end = std::chrono::steady_clock::now();
+    if (sink == 0.0) {
+        std::cerr << "yyjson asset database query benchmark did no work\n";
+        std::exit(1);
+    }
+    return std::chrono::duration<double>(end - start).count();
+}
+
 inline void run_query_case(const char* name,
                            const std::string& text,
                            const char* array_key,
@@ -181,6 +228,33 @@ inline void run_query_case(const char* name,
     std::size_t fields_per_item = many_keys ? 1u : 4u;
     std::size_t queries =
         static_cast<std::size_t>(items) * static_cast<std::size_t>(iterations) * fields_per_item;
+    double queries_per_second = static_cast<double>(queries) / best_seconds;
+    std::cout << name << " items=" << items << " queries=" << queries
+              << " best_of=3 seconds=" << best_seconds
+              << " queries_per_second=" << queries_per_second << "\n";
+
+    yyjson_doc_free(doc);
+}
+
+inline void run_asset_database_query_case(const char* name, const std::string& text, int items, int iterations) {
+    yyjson_doc* doc = yyjson_read(text.data(), text.size(), YYJSON_READ_NOFLAG);
+    if (!doc) {
+        std::cerr << "yyjson parse failed before query benchmark: " << name << "\n";
+        std::exit(1);
+    }
+
+    yyjson_val* root = yyjson_doc_get_root(doc);
+    yyjson_val* database = require_member(root, "asset_database", name);
+    yyjson_val* records = require_member(database, "assets", name);
+
+    double best_seconds = 0.0;
+    for (int run = 0; run < 3; ++run) {
+        double seconds = run_asset_database_query_once(records, iterations);
+        if (best_seconds == 0.0 || seconds < best_seconds)
+            best_seconds = seconds;
+    }
+
+    std::size_t queries = static_cast<std::size_t>(items) * static_cast<std::size_t>(iterations) * 5u;
     double queries_per_second = static_cast<double>(queries) / best_seconds;
     std::cout << name << " items=" << items << " queries=" << queries
               << " best_of=3 seconds=" << best_seconds

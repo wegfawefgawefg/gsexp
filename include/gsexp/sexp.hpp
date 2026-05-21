@@ -68,7 +68,6 @@ struct KeyIndexEntry {
 };
 
 struct ChildIndexCache {
-    std::uint32_t list = invalid_node;
     std::vector<KeyIndexEntry> entries;
 };
 

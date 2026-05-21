@@ -151,7 +151,6 @@ std::uint32_t find_child_index(const ParseStorage& storage,
     std::uint16_t cache_index = storage.child_index_lookup[list_index];
     if (cache_index == invalid_child_index_cache) {
         ChildIndexCache cache;
-        cache.list = list_index;
         cache.entries = build_child_index(storage, list);
         if (storage.child_indexes.size() >= invalid_child_index_cache)
             return find_child_index_direct(storage, list, searched_head);

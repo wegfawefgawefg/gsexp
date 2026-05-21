@@ -13,6 +13,10 @@ bool is_digit(char c) {
     return c >= '0' && c <= '9';
 }
 
+bool is_delimiter(char c) {
+    return is_space(c) || c == '(' || c == ')';
+}
+
 void advance_position(char c, int& line, int& column) {
     if (c == '\n') {
         ++line;
@@ -36,8 +40,10 @@ void add_diagnostic(std::vector<Diagnostic>* diagnostics,
 
 class Parser {
   public:
-    explicit Parser(std::string_view source) : storage(std::make_shared<ParseStorage>()) {
-        storage->source = source;
+    explicit Parser(std::string source) : storage(std::make_shared<ParseStorage>()) {
+        storage->source = std::move(source);
+        storage->nodes.reserve(storage->source.size() / 4);
+        last_children.reserve(storage->source.size() / 4);
         text = storage->source;
     }
 
@@ -62,6 +68,7 @@ class Parser {
 
   private:
     std::shared_ptr<ParseStorage> storage;
+    std::vector<std::uint32_t> last_children;
     std::string_view text;
     std::size_t index = 0;
     int line = 1;
@@ -69,16 +76,20 @@ class Parser {
 
     std::uint32_t add_node(ValueType type, std::string_view node_text, std::uint32_t parent) {
         std::uint32_t node_index = static_cast<std::uint32_t>(storage->nodes.size());
-        storage->nodes.push_back(NodeData{type, node_text, parent});
+        NodeData node;
+        node.type = type;
+        node.text = node_text;
+        storage->nodes.push_back(node);
+        last_children.push_back(invalid_node);
 
         if (parent != invalid_node) {
             NodeData& parent_node = storage->nodes[parent];
             if (parent_node.first_child == invalid_node) {
                 parent_node.first_child = node_index;
             } else {
-                storage->nodes[parent_node.last_child].next_sibling = node_index;
+                storage->nodes[last_children[parent]].next_sibling = node_index;
             }
-            parent_node.last_child = node_index;
+            last_children[parent] = node_index;
             ++parent_node.child_count;
         }
 
@@ -204,8 +215,7 @@ class Parser {
                     default: buffer.push_back(esc); break;
                 }
             } else if (ch == '"') {
-                storage->decoded_strings.push_back(std::move(buffer));
-                out = add_node(ValueType::String, storage->decoded_strings.back(), parent);
+                out = add_node(ValueType::String, store_decoded_string(buffer), parent);
                 return true;
             } else {
                 buffer.push_back(ch);
@@ -216,11 +226,21 @@ class Parser {
         return false;
     }
 
+    std::string_view store_decoded_string(const std::string& value) {
+        if (storage->decoded_text.capacity() == 0)
+            storage->decoded_text.reserve(storage->source.size());
+
+        std::size_t offset = storage->decoded_text.size();
+        storage->decoded_text.insert(storage->decoded_text.end(), value.begin(), value.end());
+        ++storage->decoded_string_count;
+        return std::string_view(storage->decoded_text.data() + offset, value.size());
+    }
+
     void parse_atom(std::uint32_t parent, std::uint32_t& out) {
         std::size_t start = index;
         while (index < text.size()) {
             char ch = text[index];
-            if (is_space(ch) || ch == '(' || ch == ')')
+            if (is_delimiter(ch))
                 break;
             ++index;
         }
@@ -378,7 +398,7 @@ std::vector<Token> tokenize(std::string_view text, std::vector<Diagnostic>* diag
         std::size_t start = index;
         while (index < text.size()) {
             char ch = text[index];
-            if (is_space(ch) || ch == '(' || ch == ')')
+            if (is_delimiter(ch))
                 break;
 
             advance_position(ch, line, column);
@@ -397,7 +417,12 @@ std::vector<Token> tokenize(std::string_view text, std::vector<Diagnostic>* diag
 }
 
 ParseResult parse(std::string_view text) {
-    Parser parser(text);
+    Parser parser{std::string(text)};
+    return parser.parse();
+}
+
+ParseResult parse_owned(std::string text) {
+    Parser parser(std::move(text));
     return parser.parse();
 }
 

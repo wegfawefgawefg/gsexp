@@ -1,13 +1,13 @@
 #pragma once
 
 #include <cstddef>
-#include <deque>
 #include <cstdint>
 #include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 namespace gsexp {
@@ -47,19 +47,38 @@ struct Token {
 constexpr std::uint32_t invalid_node = 0xffffffffu;
 
 struct NodeData {
-    ValueType type = ValueType::List;
     std::string_view text;
-    std::uint32_t parent = invalid_node;
     std::uint32_t first_child = invalid_node;
-    std::uint32_t last_child = invalid_node;
     std::uint32_t next_sibling = invalid_node;
     std::uint32_t child_count = 0;
+    ValueType type = ValueType::List;
+};
+
+struct KeyIndexEntry {
+    std::string_view key;
+    std::uint32_t child = invalid_node;
 };
 
 struct ParseStorage {
     std::string source;
-    std::deque<std::string> decoded_strings;
+    std::vector<char> decoded_text;
+    std::size_t decoded_string_count = 0;
     std::vector<NodeData> nodes;
+    mutable std::unique_ptr<std::unordered_map<std::uint32_t, std::vector<KeyIndexEntry>>>
+        child_indexes;
+};
+
+struct StorageStats {
+    std::size_t source_bytes = 0;
+    std::size_t node_count = 0;
+    std::size_t node_capacity = 0;
+    std::size_t decoded_string_count = 0;
+    std::size_t decoded_string_bytes = 0;
+    std::size_t child_index_count = 0;
+    std::size_t child_index_entry_count = 0;
+    std::size_t child_index_entry_capacity = 0;
+    std::size_t root_count = 0;
+    std::size_t approximate_bytes = 0;
 };
 
 class Node;
@@ -74,6 +93,7 @@ struct ParseResult {
 
     std::size_t root_count() const;
     Node root(std::size_t index) const;
+    StorageStats storage_stats() const;
 };
 
 class Node {
@@ -89,6 +109,8 @@ class Node {
     Node first_child() const;
     Node next_sibling() const;
     Node child_at(std::size_t child_index) const;
+    Node head() const;
+    Node second() const;
     ChildRange children() const;
     bool is_list() const;
     bool is_atom(std::string_view atom) const;
@@ -97,6 +119,7 @@ class Node {
   private:
     friend class ChildIterator;
     friend class ChildRange;
+    friend Node find_child(Node list, std::string_view symbol);
 
     const NodeData* data() const;
 
@@ -142,6 +165,7 @@ bool looks_like_integer(std::string_view text);
 bool looks_like_float(std::string_view text);
 
 ParseResult parse(std::string_view text);
+ParseResult parse_owned(std::string text);
 std::vector<Token> tokenize(std::string_view text, std::vector<Diagnostic>* diagnostics = nullptr);
 
 bool is_atom(Node node, std::string_view atom);
@@ -151,6 +175,7 @@ Node find_child(Node list, std::string_view symbol);
 std::optional<int> extract_int(Node list, std::string_view symbol);
 std::optional<float> extract_float(Node list, std::string_view symbol);
 std::optional<std::string> extract_string(Node list, std::string_view symbol);
+std::optional<std::string_view> extract_string_view(Node list, std::string_view symbol);
 
 std::string quote_string(std::string_view text);
 

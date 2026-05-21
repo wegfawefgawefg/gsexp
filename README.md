@@ -72,6 +72,12 @@ for (gsexp::Node child : root.children()) {
 }
 ```
 
+Use `parse_owned(std::string)` when the caller already has a loaded source
+string and wants to move it into the parse result. Use `extract_string_view` when
+the caller can keep the owning `ParseResult` alive and wants to avoid copying
+string values. Use `storage_stats()` for diagnostics or benchmarking; it reports
+approximate retained storage and is not intended as an exact heap profiler.
+
 Do not store `Node` handles or `Node::text()` views after the owning
 `ParseResult` is destroyed.
 

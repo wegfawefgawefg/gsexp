@@ -26,8 +26,9 @@ void test_parse_and_extract() {
     gsexp::Node root = result.root(0);
     gsexp::Node width_node = gsexp::find_child(root, "width");
     require(width_node.valid(), "width node exists");
-    require(width_node.child_at(1).type() == gsexp::ValueType::Atom, "numeric atom stays atom");
+    require(width_node.second().type() == gsexp::ValueType::Atom, "numeric atom stays atom");
     require(gsexp::extract_string(root, "name") == "demo", "extract string");
+    require(gsexp::extract_string_view(root, "name") == "demo", "extract string view");
     require(gsexp::extract_int(root, "width") == 1280, "extract int");
     require(gsexp::extract_float(root, "scale").has_value(), "extract float");
 
@@ -47,6 +48,13 @@ void test_parse_result_owns_text() {
     gsexp::Node copied_root = copied.root(0);
     require(gsexp::extract_string(copied_root, "name") == "demo", "copied result keeps string text");
     require(gsexp::extract_string(copied_root, "kind") == "atom", "copied result keeps atom text");
+}
+
+void test_parse_owned() {
+    std::string text = "(root (name \"owned\"))";
+    gsexp::ParseResult result = gsexp::parse_owned(std::move(text));
+    require(result.ok, "parse owned source string");
+    require(gsexp::extract_string(result.root(0), "name") == "owned", "owned source keeps text");
 }
 
 void test_escaped_string_storage() {
@@ -81,6 +89,7 @@ void test_errors_and_roots() {
 int main() {
     test_parse_and_extract();
     test_parse_result_owns_text();
+    test_parse_owned();
     test_escaped_string_storage();
     test_int_range();
     test_errors_and_roots();

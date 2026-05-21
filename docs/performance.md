@@ -221,7 +221,8 @@ Acceptance rules:
 
 Goal: tune the flat-node parser without making the API clever. The major
 representation win is already done; Plan 5 should focus on measured targeted
-improvements and memory/allocation evidence.
+improvements, memory evidence, and query behavior. The normal API should stay
+close to `parse(text)` plus simple `Node` helpers.
 
 Benchmark and measurement work:
 
@@ -244,17 +245,20 @@ Benchmark and measurement work:
    Current escaped strings are covered, but not enough to decide whether decoded
    string storage deserves a different representation.
 
-Candidate optimizations:
+Candidate options:
 
 1. `parse_owned(std::string)`.
    Add an overload that moves caller-owned source text into `ParseResult`
    storage instead of copying it. This keeps the same parser and representation;
-   it is an ownership convenience, not a second parser.
+   it is an ownership convenience, not a second parser. Keep only if it is useful
+   for real file-load paths or at least neutral in parse benchmarks.
 
 2. Query helper indexing.
-   Add optional or lazy per-list key indexes for `find_child` and `extract_*`.
-   This targets query-heavy consumers. Keep only if repeated lookup benchmarks
-   improve enough to justify the memory and implementation cost.
+   Add optional or lazy per-list key indexes for repeated `find_child` and
+   `extract_*` calls. This targets query-heavy consumers. Keep only if last-key,
+   missing-key, and many-key benchmarks improve enough to justify the memory and
+   implementation cost. Do not build indexes eagerly for every list unless parse
+   throughput and storage metrics stay acceptable.
 
 3. Faster common child access.
    `child_at(n)` walks sibling links. Try storing child ranges contiguously or
@@ -262,9 +266,10 @@ Candidate optimizations:
    helpers do not repeatedly walk siblings.
 
 4. Node field packing.
-   Current nodes store type, text view, parent, first child, last child, next
-   sibling, and child count. Measure whether parent or last child are needed
-   after parsing, and whether fields can be packed without hurting clarity.
+   The original flat nodes stored type, text view, parent, first child, last
+   child, next sibling, and child count. Measure whether retained fields are
+   needed after parsing, and whether fields can be packed without hurting
+   clarity. This is mostly a memory/cache option, not a public API feature.
 
 5. Root and node reservation.
    Try estimating node count before parse or reserving based on source length.
@@ -272,8 +277,8 @@ Candidate optimizations:
    one large `nodes.reserve(...)`.
 
 6. Escaped string storage.
-   Decoded escaped strings currently live in `std::deque<std::string>`. Try a
-   contiguous decoded string buffer with views if escaped-heavy benchmarks show
+   The original decoded escaped strings lived in `std::deque<std::string>`. Try
+   a contiguous decoded string buffer with views if escaped-heavy benchmarks show
    it matters.
 
 7. Helper return shapes.
@@ -285,6 +290,170 @@ Candidate optimizations:
    Line/column tracking is always maintained. Try measuring a diagnostics-light
    parser mode only if benchmarks show line tracking is a real cost. Do not add
    a confusing parser API just to skip diagnostics.
+
+9. Tokenizer isolation.
+   `tokenize()` is still public and separate from the direct parser. Confirm it
+   does not force parser-side structure or slow paths. Do not optimize
+   `tokenize()` at the expense of `parse()` unless a real consumer needs it.
+
+10. Character classification table.
+    The parser already uses simple ASCII checks. Try a small lookup table only if
+    profiles show delimiter/whitespace checks are hot. Revert if it makes the
+    scanner harder to read without a clear parse win.
+
+11. Source copy/file-load path.
+    Add a benchmark that reads or simulates loaded file contents and then parses
+    with `parse_owned`. This is different from repeatedly copying benchmark
+    strings into `parse_owned`, which can hide the intended benefit.
+
+12. Arena-style decoded strings.
+    If escaped strings matter, replace many decoded `std::string` allocations
+    with one growing byte buffer plus string views. Keep only if escaped-heavy
+    cases improve and `Node::text()` lifetime remains obvious.
+
+13. Small-list specialization.
+    Most config records are `(key value)` pairs. Consider a representation or
+    helper path that makes two-child lists cheaper without adding a second user
+    model. Reject if it complicates child iteration.
+
+14. Optional parse limits.
+    Depth and node-count limits can protect asset pipelines from bad files. This
+    is not a speed feature, but should be considered while touching parser
+    internals. Defaults must preserve current behavior.
+
+15. Error-path cleanup.
+    Keep malformed-input handling non-crashy and predictable. If parser hot paths
+    are simplified, re-run error tests and avoid moving complexity into public
+    callers.
+
+Plan 5 status table:
+
+| Date | Option | Target case | Result |
+| --- | --- | --- | --- |
+| 2026-05-21 | Memory/storage stats | All parse cases | Kept; benchmarks now print node, decoded string, index, and approximate storage stats |
+| 2026-05-21 | Owned-source parse path | `assets_10k_owned`, `assets_50k_owned` | Kept; single parser implementation with caller-owned source convenience |
+| 2026-05-21 | Expanded query cases | first, last, missing, string view, many-key | Kept; used to evaluate direct scan and lazy index changes |
+| 2026-05-21 | `head()` / `second()` helpers | `(key value)` helper lookup | Kept; simple helper path replacing repeated `child_at(1)` walks |
+| 2026-05-21 | `extract_string_view` | string query helpers | Kept; avoids copies for callers that respect `ParseResult` lifetime |
+| 2026-05-21 | Reserve nodes with `source.size() / 4` | `assets_10k`, `assets_50k`, `wide_10k` | Kept; large parse speed improved substantially, with deliberate over-reserve on long string-heavy files |
+| 2026-05-21 | Reserve nodes with `source.size() / 8` | Reduce string-heavy over-reserve | Rejected; lower memory than `/4`, but much slower on large asset and wide parse cases |
+| 2026-05-21 | Exact node-count pre-scan | Reduce node capacity waste | Rejected; exact capacity, but the extra scan lost too much throughput |
+| 2026-05-21 | Reserve nodes with `source.size() / 6` | Middle ground between `/4` and `/8` | Rejected; slower than `/4` and overgrew `assets_50k` capacity |
+| 2026-05-21 | Direct `NodeData` scan in `find_child` | Common helper lookup | Kept; reduces per-child handle churn and improves common query cases |
+| 2026-05-21 | Lazy child index at 8 children | Repeated last/missing lookup | Rejected; helped missing/last queries, but hurt common asset queries too much |
+| 2026-05-21 | Lazy child index at 16 children | Many-key repeated lookup | Kept; leaves normal asset records unindexed and improves wide lookup |
+| 2026-05-21 | Remove stored `parent` from `NodeData` | Node field packing | Kept; field was never read after parse and storage/query results improved |
+| 2026-05-21 | Move `last_child` to parser-local state and reorder `NodeData` | Node field packing | Kept; reduces retained node size and final storage substantially |
+| 2026-05-21 | Store decoded escaped strings in one byte arena | Escaped string storage | Kept; escaped-heavy parse improved and API lifetime stayed unchanged |
+| 2026-05-21 | Bulk-skip horizontal whitespace and comments | Diagnostics/scanner overhead | Rejected; mixed parse results and material regressions in string/wide cases |
+
+Plan 5 current baseline before node reservation:
+
+| Case | Metric | Result |
+| --- | --- | ---: |
+| assets_10k | MiB/s | 55.44 |
+| assets_50k | MiB/s | 81.68 |
+| wide_10k | MiB/s | 145.15 |
+| strings_plain_5k | MiB/s | 385.14 |
+| strings_escaped_5k | MiB/s | 241.70 |
+
+Node reservation attempt results:
+
+| Attempt | assets_10k MiB/s | assets_50k MiB/s | wide_10k MiB/s | strings_plain_5k MiB/s | Notes |
+| --- | ---: | ---: | ---: | ---: | --- |
+| `source.size() / 4` | 199.35 | 172.93 | 279.80 | 437.06 | Best parse throughput; keeps simple parser-local code |
+| `source.size() / 8` | 158.75 | 129.07 | 234.61 | 456.43 | Better string-heavy capacity, weaker large parse throughput |
+| exact pre-scan | 121.06 | 104.36 | 145.84 | 256.13 | Exact node capacity, but scan cost is too high |
+| `source.size() / 6` | 142.60 | 104.75 | 179.78 | 429.20 | Not a useful middle ground |
+
+Final kept-code verification:
+
+| Case | Metric | Result |
+| --- | --- | ---: |
+| assets_10k | MiB/s | 187.36 |
+| assets_50k | MiB/s | 156.62 |
+| wide_10k | MiB/s | 230.42 |
+| strings_plain_5k | MiB/s | 419.22 |
+| strings_escaped_5k | MiB/s | 248.91 |
+| query_assets_10k | queries/s | 9,787,960 |
+| query_many_keys_last | queries/s | 2,882,830 |
+
+Memory note: `/4` intentionally trades extra capacity for throughput. On the
+measured string-heavy case, node capacity rises to 294,170 for 55,002 nodes.
+That is acceptable for now because the target asset cases improve by roughly
+2.1x to 3.6x and the code stays one line. Revisit with a better density
+heuristic only if string-heavy files become a real memory problem.
+
+Query lookup attempt results:
+
+| Attempt | query_assets_10k q/s | query_first_10k q/s | query_last_10k q/s | query_missing_10k q/s | query_string_view_10k q/s | query_many_keys_last q/s | Result |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| Before query changes | 9,787,960 | 9,069,900 | 4,491,430 | 5,604,800 | 7,188,450 | 2,882,830 | Baseline after node reservation |
+| Direct `NodeData` scan | 10,891,600 | 8,560,020 | 4,548,420 | 5,879,680 | 8,146,870 | 2,587,660 | Mixed but useful; no storage cost |
+| Lazy index threshold 8 | 8,460,980 | 8,233,890 | 5,314,900 | 13,582,300 | 9,530,050 | 3,353,450 | Rejected; normal asset queries regressed |
+| Lazy index threshold 16 | 10,479,100 | 9,490,840 | 4,486,900 | 5,869,370 | 8,981,610 | 3,237,910 | Kept; improves common/string/many-key without indexing asset records |
+
+Index memory note: with threshold 16, the asset query cases build no child
+indexes. The many-key benchmark builds 5,000 child indexes with 120,000 entries;
+reported approximate storage rises to 24,448,404 bytes for that parsed result.
+The estimate counts entry capacity but not every `unordered_map` bucket/control
+allocation, so it is useful for relative tracking, not exact heap accounting.
+
+Node packing attempt results:
+
+| Attempt | assets_10k MiB/s | assets_50k MiB/s | wide_10k MiB/s | assets_50k approx bytes | query_assets_10k q/s | query_string_view_10k q/s | Result |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| Before node packing | 183.65 | 154.66 | 228.74 | 90,633,246 | 10,479,100 | 8,981,610 | Baseline after query index |
+| Remove stored `parent` | 189.48 | 155.63 | 203.94 | 76,689,670 | 11,976,400 | 10,159,500 | Kept |
+| Move `last_child` parser-local and reorder fields | 186.96 | 164.43 | 224.46 | 62,746,094 | 13,831,400 | 12,730,800 | Kept |
+
+Packing note: `parent` was retained only from the original tree shape and was
+not used by traversal or helpers. `last_child` is needed only while parsing to
+append siblings, so it now lives in a parser-local vector and is not retained in
+`ParseResult`. Reordering the remaining fields makes the storage reduction real
+instead of just moving padding around.
+
+Escaped string storage attempt results:
+
+| Attempt | strings_escaped_5k MiB/s | strings_escaped_5k approx bytes | assets_50k MiB/s | strings_plain_5k MiB/s | Result |
+| --- | ---: | ---: | ---: | ---: | --- |
+| `std::deque<std::string>` decoded storage | 253.54 | 12,645,121 | 164.43 | 428.51 | Baseline after node packing |
+| Single decoded byte arena | 296.05 | 12,916,802 | 168.45 | 430.36 | Kept |
+
+Escaped storage note: the arena reserves `source.size()` bytes the first time an
+escaped string is decoded. That is intentionally conservative because
+`Node::text()` returns `std::string_view`; the backing buffer must not reallocate
+after earlier nodes point into it. The benchmark shows the speed win is worth the
+small measured storage increase on escaped-heavy files.
+
+Diagnostics/scanner attempt results:
+
+| Attempt | assets_10k MiB/s | assets_50k MiB/s | strings_plain_5k MiB/s | strings_escaped_5k MiB/s | wide_10k MiB/s | Result |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| Before bulk scanner change | 189.70 | 168.45 | 430.36 | 296.05 | 249.57 | Baseline after decoded arena |
+| Bulk-skip spaces/tabs/comments | 186.68 | 157.38 | 384.39 | 266.42 | 206.07 | Rejected |
+| Reverted to simpler scanner | 203.12 | 162.57 | 422.57 | 274.17 | 241.33 | Kept current simpler code |
+
+Scanner note: line/column tracking remains always on. A diagnostics-light parser
+mode is still rejected by default because it would complicate the API; the local
+scanner change did not justify that direction.
+
+Plan 5 closure notes:
+
+1. `parse_owned` uses the same parser as `parse`; it is not a second parser
+   path. The benchmark necessarily reconstructs source strings between
+   iterations, so it is a useful ownership-path check rather than a pure file I/O
+   benchmark.
+2. `tokenize()` remains separate from the direct parser. No Plan 5 change made
+   parser hot paths depend on tokenization.
+3. Character classification table work is covered by the scanner attempt above.
+   The simpler branch checks are retained because the measured table-adjacent
+   scanner change did not win.
+4. Optional parse limits are not implemented in Plan 5. They are a safety/API
+   feature, not a demonstrated parser-speed optimization, and defaults would need
+   to preserve current behavior.
+5. Error-path behavior remains covered by `gsexp_tests`; malformed input stays
+   non-crashy and diagnostic-producing after the storage changes.
 
 Rejected-by-default unless evidence changes:
 

@@ -350,6 +350,63 @@ Attempt results so far:
 | Public scan-once common asset probe retest | Rejected. A benchmark-only probe walked each asset form once through public `Node` children and extracted `id`, `x`, `y`, and `path`. It was much slower than normal `FormView` lookup on the current representation: `query_scan_once_assets_10k` measured 9.12M q/s while `query_assets_10k` measured 24.49M q/s in the same run. Public nested traversal is not the ceiling to optimize toward; any production fix needs lower-level internal state or representation changes behind `FormView`. |
 | `get_string_view()` first-argument-only helper | Rejected. Isolating the first-argument specialization to `get_string_view()` still did not improve the target string-view path. The measured run had `query_string_view_10k` at 15.41M q/s versus the clean baseline around 16.55M q/s, while common asset lookup fell to 23.13M q/s and wide indexed cases also stayed below the kept baseline range. The shared `find_arg_data(..., 0)` path was restored. |
 | Switch-based whitespace/comment skipper | Kept. `skip_space_and_comments()` now switches directly on the exact whitespace and comment marker bytes instead of calling `is_space()` before checking comments. Two measured runs improved the parse-oriented cases versus the refreshed clean baseline. The second run had `assets_10k` at 259.24 MiB/s, `asset_database_5k` at 310.10 MiB/s, `asset_database_20k` at 327.71 MiB/s, `strings_plain_5k` at 1113.66 MiB/s, `strings_escaped_5k` at 752.65 MiB/s, and `code_forms_2k` at 273.70 MiB/s. Query results moved within normal noise and are not the reason for keeping this parser-path change. |
+| Direct atom delimiter switch helper | Rejected. Replacing the scalar atom tail's `is_delimiter()` call with a direct `switch` helper did not improve the parser hot path. The measured run regressed the main parse cases versus the switch-skipper baseline: `assets_10k` measured 225.85 MiB/s, `asset_database_5k` 287.86 MiB/s, `asset_database_20k` 273.92 MiB/s, `strings_plain_5k` 914.05 MiB/s, and `strings_escaped_5k` 689.98 MiB/s. The original helper call was restored. |
+
+Current pending Plan 11 queue:
+
+1. Keep one public consumption API.
+   Users should parse once, keep the `ParseResult` alive, then use `Node` for
+   raw traversal and `FormView` for form lookup. Do not add a public
+   scan-once, cursor, batch, or compiled-key API just to win a benchmark until
+   internal state behind `FormView` has been exhausted.
+
+2. Make `FormView` fast without making callers think about it.
+   `FormView` may hold tiny mutable state or a cache handle, and
+   `ParseStorage` may hold form-state tables, hot-key tables, and lazy indexes.
+   The normal call site should still be `form.get_int("id")`,
+   `form.get_float("x")`, and `form.get_string_view("path")`.
+
+3. Revisit storage-owned hot-form state with stricter triggers.
+   Previous inline and storage-owned small-form caches were rejected because
+   they were too eager or too costly. Retry only designs that build after
+   repeated lookup on the same form, are gated by child count, avoid per-view
+   heap allocation, and report memory in `StorageStats`.
+
+4. Try a `FormView` cache handle instead of repeated storage lookup.
+   If storage-owned form state is useful, let a `FormView` remember the small
+   cache id for its node. The state must not make `FormView` ownership or
+   lifetime surprising, and it must not require a second public type.
+
+5. Add an internal hot-key identity cache.
+   Repeated caller keys such as `id`, `path`, `x`, and `y` can be resolved to
+   storage-owned key ids or hashes inside `FormView::get_*`. This should remain
+   hidden unless benchmarks prove public compiled keys are necessary.
+
+6. Retry symbol/head interning with a compact design.
+   The unordered-map, node-indexed side-vector attempt was too expensive.
+   Future attempts should target only form heads or repeated atom keys, avoid
+   widening every node, and compare parse cost against lookup wins.
+
+7. Replace sibling links only if the replacement is real.
+   The side child-span arena was rejected because it layered a second child
+   representation on top of sibling links. A future child-span attempt should
+   replace sibling traversal during construction or be skipped.
+
+8. Consider a parse-time tape or one-pass retained builder.
+   A tape/event builder is allowed if it removes finalization cost or enables a
+   better retained representation. Reject it if it merely adds another pass or
+   another representation.
+
+9. Keep scanner changes small and isolated.
+   Remaining parser hot-loop candidates are direct delimiter tests in atom
+   scanning, table-driven byte classification, optional SIMD quote/backslash
+   search for long strings, and reserve-policy tuning. Each should be measured
+   separately and reverted if it is only clever.
+
+10. Add private ceiling probes only when they answer a specific question.
+    The public scan-once probe was slower than normal `FormView`; future probes
+    should use internal node indices or storage access to estimate real
+    implementation ceilings, not propose another public API.
 
 Work order:
 

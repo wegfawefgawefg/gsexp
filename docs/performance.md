@@ -244,6 +244,7 @@ Attempt results so far:
 | Flat index-entry arena | Rejected. Replacing one vector per lazy wide-form index with one shared `child_index_entries` arena regressed the target wide lookup cases in the measured run: `query_many_keys_last` fell to 5.20M queries/s and `query_find_many_keys_last` fell to 4.88M queries/s. The retained memory shape was simpler, but the lookup path lost enough locality or iterator simplicity to reject it. |
 | Compiler CTZ for SSE2 movemask result | Kept. A same-session A/B run against the manual first-set-bit loop improved important parse cases: `assets_10k` went from 216.00 to 233.34 MiB/s, `asset_database_5k` from 260.47 to 296.71 MiB/s, and `strings_escaped_5k` from 588.81 to 645.53 MiB/s. The fallback loop remains for non-GCC/non-Clang compilers. |
 | Code-like form fixture | Kept. `code_forms_2k` adds a non-record-shaped workload with nested calls, blocks, strings, arithmetic forms, and conditionals. The first measured result is 699,796 bytes, 162,016 nodes, and 242.29 MiB/s. This is benchmark coverage, not an optimization by itself. |
+| Head-only side table indexed by node | Rejected. Storing a `list_heads` side vector outside `NodeData` added 4 bytes of retained capacity per node and slowed the measured hot cases: `assets_10k` fell to 220.44 MiB/s, `code_forms_2k` fell to 214.12 MiB/s, and `query_assets_10k` fell to 14.13M queries/s. The existing `first_child` field is the better head source until there is a compact list-only table or symbol metadata with a larger payoff. |
 
 Work order:
 

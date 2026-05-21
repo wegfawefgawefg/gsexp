@@ -274,6 +274,11 @@ Plan 3 acceptance rule:
      MiB/s, `assets_50k` 45.49-46.29 MiB/s, `strings_plain_5k` 258.90-276.39
      MiB/s, `wide_10k` 121.04-125.83 MiB/s, `query_assets_10k` 10.20M-10.43M
      queries/s.
+   - Small-list inline storage was not implemented directly because the current
+     public recursive `Value` type cannot contain inline `Value` children
+     without replacing `.list` with a wrapper type. The PMR allocation attempt
+     was used as the lower-risk allocation experiment for the current shape and
+     was rejected.
 
 4. Top-level root reservation.
    - Reverted. Reserving one root slot did not clearly improve the many-small
@@ -283,6 +288,9 @@ Plan 3 acceptance rule:
    - Reverted. Adding a stored FNV-style atom hash increased parse work and did
      not improve repeated `find_child`/`is_atom` queries. `query_assets_10k`
      dropped to 9.57M-9.62M queries/s, below the source-view result.
+   - Full atom/key interning was not implemented after this result. Source-owned
+     views already removed atom string allocation, and the measured lookup
+     shortcut did not justify adding an intern table to the normal API.
 
 6. PMR list allocation.
    - Reverted. Changing `Value::list` to `std::pmr::vector<Value>` backed by a
@@ -301,3 +309,24 @@ Plan 3 acceptance rule:
    - This proves there is still a large ceiling, but making it the normal
      `parse(text)` path requires a deliberate public representation rewrite or a
      compatibility wrapper over flat storage.
+
+8. String fast path.
+   - Covered by the source-owned view representation. Unescaped strings now
+     return views into parse-owned source text without decoding or allocating.
+     Escaped strings are still decoded into parse-owned storage.
+
+9. Compatibility wrapper.
+   - Not implemented in Plan 3. The flat benchmark proves a wrapper may be worth
+     designing, but it would be a new public representation decision rather than
+     a safe local optimization. Keep the current `parse(text)` API until that
+     rewrite is explicitly chosen.
+
+Plan 3 execution status:
+
+1. Benchmark coverage was added and kept.
+2. Parser-local attempts were tried, kept, or reverted with measurements.
+3. Representation attempts were either implemented, rejected with measurements,
+   or narrowed to a documented follow-up public representation decision.
+4. The remaining major opportunity is a flat-storage `Value` redesign. That is
+   outside incremental Plan 3 optimization and should be treated as a new design
+   task before changing the normal API.

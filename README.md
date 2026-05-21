@@ -104,6 +104,9 @@ The build script also runs the test executable through CTest.
 ./scripts/bench.sh
 ```
 
+Benchmark builds fetch yyjson by default for local JSON comparison. Disable that
+with `-DGSEXP_BENCHMARK_YYJSON=OFF` when configuring manually.
+
 Benchmark results and optimization notes are kept in
 [docs/performance.md](docs/performance.md).
 

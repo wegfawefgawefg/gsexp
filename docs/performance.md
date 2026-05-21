@@ -14,7 +14,7 @@ Process:
    usability or correctness, then benchmarked and documented.
 7. Record the result here.
 
-The benchmark generates S-expression asset records in memory and parses them
+The benchmark generates S-expression and JSON records in memory and parses them
 repeatedly. It reports the best of three runs for each case. It is intended to
 catch parser-level improvements, not full application startup behavior.
 
@@ -23,23 +23,40 @@ Older optimization plans and detailed results are archived in
 
 ## Current Results
 
-Latest verified Plan 5 results on this machine:
+Latest verified Plan 6 baseline results on this machine:
 
 | Case | Result |
 | --- | ---: |
-| assets_10k | 206.53 MiB/s |
-| assets_50k | 171.93 MiB/s |
-| small_files_1k | 175.52 MiB/s |
-| strings_plain_5k | 432.42 MiB/s |
-| strings_escaped_5k | 283.96 MiB/s |
-| deep_1k | 177.60 MiB/s |
-| wide_10k | 255.03 MiB/s |
-| query_assets_10k | 14.88M queries/s |
-| query_first_10k | 10.85M queries/s |
-| query_last_10k | 7.28M queries/s |
-| query_missing_10k | 9.85M queries/s |
-| query_string_view_10k | 11.35M queries/s |
-| query_many_keys_last | 3.70M queries/s |
+| assets_10k | 206.44 MiB/s |
+| assets_50k | 175.39 MiB/s |
+| small_files_1k | 167.84 MiB/s |
+| strings_plain_5k | 422.29 MiB/s |
+| strings_escaped_5k | 281.10 MiB/s |
+| deep_1k | 173.46 MiB/s |
+| wide_10k | 256.97 MiB/s |
+| query_assets_10k | 14.62M queries/s |
+| query_first_10k | 11.74M queries/s |
+| query_last_10k | 7.56M queries/s |
+| query_missing_10k | 9.53M queries/s |
+| query_string_view_10k | 14.22M queries/s |
+| query_many_keys_last | 3.62M queries/s |
+
+Plan 6 yyjson comparison results:
+
+| Equivalent case | gsexp | yyjson | yyjson/gsexp |
+| --- | ---: | ---: | ---: |
+| assets_10k parse | 206.44 MiB/s | 689.48 MiB/s | 3.34x |
+| assets_50k parse | 175.39 MiB/s | 629.63 MiB/s | 3.59x |
+| small_files_1k parse | 167.84 MiB/s | 515.91 MiB/s | 3.07x |
+| strings_plain_5k parse | 422.29 MiB/s | 1305.07 MiB/s | 3.09x |
+| strings_escaped_5k parse | 281.10 MiB/s | 1182.92 MiB/s | 4.21x |
+| wide_10k parse | 256.97 MiB/s | 802.62 MiB/s | 3.12x |
+| assets_10k lookup | 14.62M queries/s | 58.55M queries/s | 4.01x |
+| many_keys_last lookup | 3.62M queries/s | 7.66M queries/s | 2.12x |
+
+These are equivalent data shapes, not byte-identical files. The JSON fixtures
+are generated beside the S-expression fixtures and measured by each format's
+own source byte size. yyjson is fetched only for benchmark builds.
 
 Important Plan 5 retained changes:
 

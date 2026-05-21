@@ -71,6 +71,9 @@ void print_storage_stats(const char* name, const gsexp::ParseResult& result) {
               << " node_data_bytes=" << stats.node_data_bytes
               << " node_bytes=" << stats.node_bytes
               << " node_bytes_per_source_byte=" << stats.node_bytes_per_source_byte
+              << " child_count_overflows=" << stats.child_count_overflow_count
+              << " child_count_overflow_capacity=" << stats.child_count_overflow_capacity
+              << " child_count_overflow_bytes=" << stats.child_count_overflow_bytes
               << " source_bytes=" << stats.source_bytes
               << " decoded_strings=" << stats.decoded_string_count
               << " decoded_bytes=" << stats.decoded_string_bytes

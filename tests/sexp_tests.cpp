@@ -169,6 +169,12 @@ void test_large_child_count_overflow() {
     require(result.ok, "parse large child count input");
     require(result.root(0).child_count() == static_cast<std::size_t>(child_count + 1),
             "large child count remains exact");
+    gsexp::StorageStats stats = result.storage_stats();
+    require(stats.child_count_overflow_count == 1, "overflow side table count is reported");
+    require(stats.child_count_overflow_capacity >= stats.child_count_overflow_count,
+            "overflow side table capacity is reported");
+    require(stats.child_count_overflow_bytes >= sizeof(gsexp::ChildCountOverflow),
+            "overflow side table bytes are reported");
 }
 
 } // namespace

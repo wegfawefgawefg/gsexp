@@ -97,6 +97,10 @@ StorageStats ParseResult::storage_stats() const {
     if (stats.source_bytes > 0)
         stats.node_bytes_per_source_byte =
             static_cast<double>(stats.node_bytes) / static_cast<double>(stats.source_bytes);
+    stats.child_count_overflow_count = storage->child_count_overflows.size();
+    stats.child_count_overflow_capacity = storage->child_count_overflows.capacity();
+    stats.child_count_overflow_bytes =
+        stats.child_count_overflow_capacity * sizeof(ChildCountOverflow);
     stats.decoded_string_count = storage->decoded_string_count;
     stats.decoded_string_bytes = storage->decoded_text.size();
 
@@ -113,7 +117,7 @@ StorageStats ParseResult::storage_stats() const {
 
     stats.approximate_bytes = storage->source.capacity() +
                               storage->nodes.capacity() * sizeof(NodeData) +
-                              storage->child_count_overflows.capacity() * sizeof(ChildCountOverflow) +
+                              stats.child_count_overflow_bytes +
                               storage->decoded_text.capacity() +
                               stats.child_index_cache_bytes +
                               stats.child_index_lookup_capacity * sizeof(std::uint16_t) +

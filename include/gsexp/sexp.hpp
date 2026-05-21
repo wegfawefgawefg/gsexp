@@ -96,6 +96,9 @@ struct StorageStats {
     std::size_t node_capacity = 0;
     std::size_t node_bytes = 0;
     double node_bytes_per_source_byte = 0.0;
+    std::size_t child_count_overflow_count = 0;
+    std::size_t child_count_overflow_capacity = 0;
+    std::size_t child_count_overflow_bytes = 0;
     std::size_t decoded_string_count = 0;
     std::size_t decoded_string_bytes = 0;
     std::size_t child_index_count = 0;

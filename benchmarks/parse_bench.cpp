@@ -582,6 +582,65 @@ void run_asset_database_query_case(const char* name, const std::string& text, in
     print_storage_stats(name, result);
 }
 
+double run_nested_find_arg_once(gsexp::Node root, int iterations) {
+    double sink = 0.0;
+
+    auto start = std::chrono::steady_clock::now();
+    for (int iteration = 0; iteration < iterations; ++iteration) {
+        bool first = true;
+        for (gsexp::Node layout : root.children()) {
+            if (first) {
+                first = false;
+                continue;
+            }
+
+            gsexp::FormView layout_form(layout);
+            std::optional<int> id = layout_form.get_int("id");
+            gsexp::Node title = layout_form.find_arg("title", 0);
+            gsexp::Node play_x = layout_form.find_arg("play", 1);
+            gsexp::Node settings_w = layout_form.find_arg("settings", 3);
+            gsexp::Node credits_h = layout_form.find_arg("credits", 4);
+            if (!id || !title.valid() || !play_x.valid() || !settings_w.valid() || !credits_h.valid()) {
+                std::cerr << "nested find_arg query missing expected field\n";
+                std::exit(1);
+            }
+
+            sink += static_cast<double>(*id) + static_cast<double>(title.text().size()) +
+                    static_cast<double>(play_x.text().size()) +
+                    static_cast<double>(settings_w.text().size()) +
+                    static_cast<double>(credits_h.text().size());
+        }
+    }
+    auto end = std::chrono::steady_clock::now();
+    if (sink == 0.0) {
+        std::cerr << "nested find_arg query benchmark did no work\n";
+        std::exit(1);
+    }
+    return std::chrono::duration<double>(end - start).count();
+}
+
+void run_nested_find_arg_case(const char* name, const std::string& text, int items, int iterations) {
+    gsexp::ParseResult result = gsexp::parse(text);
+    if (!result.ok || result.root_count() == 0) {
+        std::cerr << "parse failed before nested find_arg benchmark: " << name << "\n";
+        std::exit(1);
+    }
+
+    double best_seconds = 0.0;
+    for (int run = 0; run < 3; ++run) {
+        double seconds = run_nested_find_arg_once(result.root(0), iterations);
+        if (best_seconds == 0.0 || seconds < best_seconds)
+            best_seconds = seconds;
+    }
+
+    std::size_t queries = static_cast<std::size_t>(items) * static_cast<std::size_t>(iterations) * 5u;
+    double queries_per_second = static_cast<double>(queries) / best_seconds;
+    std::cout << name << " items=" << items << " queries=" << queries
+              << " best_of=3 seconds=" << best_seconds
+              << " queries_per_second=" << queries_per_second << "\n";
+    print_storage_stats(name, result);
+}
+
 double run_child_iteration_once(gsexp::Node root, int iterations) {
     double sink = 0.0;
 
@@ -646,6 +705,7 @@ int main() {
     std::string code_json_2k = data::make_code_json(2000);
     std::string wide_json_10k = data::make_wide_json(10000);
     std::string many_keys_json = data::make_many_keys_json(5000, 24);
+    std::string nested_arg_data = data::make_nested_arg_data(5000);
 
     run_asset_case("assets_1k", 1000, 500);
     run_parse_case("assets_10k", assets_10k, 50);
@@ -686,6 +746,7 @@ int main() {
     run_query_case("query_find_many_keys_last", many_keys_data, 5000, 200, QueryMode::FindOnly);
     run_query_case("query_child_at_many_keys_last", many_keys_data, 5000, 200, QueryMode::ChildAtValue);
     run_query_case("query_find_arg_many_keys_last", many_keys_data, 5000, 200, QueryMode::FindArgValue);
+    run_nested_find_arg_case("query_nested_find_arg_5k", nested_arg_data, 5000, 200);
     scan_probe::run_case("scan_probe_asset_database_5k", asset_database_5k, 1000);
 #if GSEXP_HAVE_YYJSON
     yyjson_bench::run_parse_case("yyjson_assets_10k", asset_json_10k, 50);

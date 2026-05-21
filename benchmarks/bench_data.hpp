@@ -247,6 +247,22 @@ inline std::string make_many_keys_json(int items, int keys_per_item) {
     return out.str();
 }
 
+inline std::string make_nested_arg_data(int items) {
+    std::ostringstream out;
+    out << "(layouts\n";
+    for (int i = 0; i < items; ++i) {
+        out << "  (layout"
+            << " (id " << i << ")"
+            << " (title \"title_" << i << "\" 0.25 0.08 0.50 0.12)"
+            << " (play \"play_" << i << "\" 0.30 0.32 0.40 0.10)"
+            << " (settings \"settings_" << i << "\" 0.30 0.46 0.40 0.10)"
+            << " (credits \"credits_" << i << "\" 0.30 0.60 0.40 0.10)"
+            << ")\n";
+    }
+    out << ")\n";
+    return out.str();
+}
+
 inline std::string make_asset_database_data(int items) {
     std::ostringstream out;
     out << "(asset_database\n"

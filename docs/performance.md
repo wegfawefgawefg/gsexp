@@ -55,6 +55,7 @@ Latest verified Plan 11 results on this machine:
 | query_find_many_keys_last | 8.12M queries/s |
 | query_child_at_many_keys_last | 7.54M queries/s |
 | query_find_arg_many_keys_last | 7.35M queries/s |
+| query_nested_find_arg_5k | 24.19M queries/s |
 
 Latest yyjson comparison results:
 
@@ -367,6 +368,7 @@ Attempt results so far:
 | Manual checked integer parser | Kept, with mixed results. `get_int()` now uses a small decimal parser instead of `looks_like_integer()` plus `std::from_chars`, while preserving plus/minus, suffix rejection, sign-only rejection, and overflow behavior covered by tests. Two measured runs improved the common asset query to 23.94M and 24.34M q/s versus the previous documented 23.47M q/s, and `query_first_10k` reached 15.87M and 15.53M q/s versus 15.05M. The mixed asset database query was lower at 21.41M and 22.57M q/s versus the previous 23.88M, so this remains a watch item for later A/B runs. |
 | Storage-owned integer conversion cache | Rejected. A lazy `int_cache` mirroring the float cache avoided repeated parsing for `get_int()`, but the memory and lookup cost were not acceptable. `query_assets_10k` improved to 25.61M q/s, but `query_first_10k` fell to 15.18M q/s, `query_asset_database_5k` fell to 19.45M q/s, `query_many_keys_last` fell to 6.83M q/s, and `assets_10k` query stats gained 2.72 MB of integer-cache capacity. The cache was removed and the manual parser path restored. |
 | Table-driven scalar character classification | Rejected. Parser hot loops tried replacing explicit whitespace, delimiter, and string-special checks with a 256-entry constexpr classification table. The measured parse cases regressed enough to reject it: `assets_10k` was 237.12 MiB/s versus the current documented 250.17 MiB/s, `asset_database_5k` was 293.19 MiB/s versus 319.38 MiB/s, `strings_plain_5k` was 1045.16 MiB/s versus 1112.12 MiB/s, and `wide_10k` was 376.20 MiB/s versus 384.71 MiB/s. The explicit branch checks were restored. |
+| Nested `find_arg()` benchmark fixture | Kept. The benchmark suite now includes `query_nested_find_arg_5k`, a layout-like fixture with child forms such as `(title label x y w h)` and `(play label x y w h)`. The query uses normal `FormView::find_arg()` plus one `get_int()` and measured 24.19M q/s on the first run. This is measurement support for Plan 11 nested lookup work, not a new public API. |
 
 Current pending Plan 11 queue:
 

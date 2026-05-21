@@ -320,7 +320,13 @@ Node FormView::find(std::string_view searched_head) const {
 }
 
 Node FormView::find_arg(std::string_view searched_head, std::size_t index) const {
-    return FormView(find(searched_head)).arg(index);
+    const ParseStorage* storage = form.storage;
+    const NodeData* form_data = form.data();
+    if (!storage || !form_data)
+        return {};
+
+    std::uint32_t value_index = find_arg_index(*storage, form.index, *form_data, searched_head, index);
+    return Node(storage, value_index);
 }
 
 std::optional<int> FormView::get_int(std::string_view searched_head) const {

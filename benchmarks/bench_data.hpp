@@ -189,4 +189,103 @@ inline std::string make_many_keys_json(int items, int keys_per_item) {
     return out.str();
 }
 
+inline std::string make_asset_database_data(int items) {
+    std::ostringstream out;
+    out << "(asset_database\n"
+        << "  (schema 1)\n"
+        << "  (root \"assets\")\n"
+        << "  # generated mixed asset records\n";
+
+    for (int i = 0; i < items; ++i) {
+        if (i % 64 == 0)
+            out << "  ; chunk " << (i / 64) << "\n";
+
+        if (i % 3 == 0) {
+            out << "  (texture"
+                << " (id tex_" << i << ")"
+                << " (path \"textures/zone_" << (i % 17) << "/item_" << i << ".png\")"
+                << " (size (w " << (32 + (i % 5) * 16) << ") (h " << (32 + (i % 7) * 16) << "))"
+                << " (atlas ui)"
+                << " (tags (tag zone_" << (i % 17) << ") (tag prop) (tag common))";
+            if (i % 4 != 0)
+                out << " (mips true)";
+            if (i % 11 == 0)
+                out << " (variant \"damaged\")";
+            out << ")\n";
+        } else if (i % 3 == 1) {
+            out << "  (sound"
+                << " (id snd_" << i << ")"
+                << " (path \"audio/events/event_" << i << ".ogg\")"
+                << " (stream " << (i % 5 == 0 ? "true" : "false") << ")"
+                << " (volume " << (0.5 + static_cast<double>(i % 30) / 100.0) << ")"
+                << " (groups (group sfx) (group zone_" << (i % 9) << "))";
+            if (i % 8 == 0)
+                out << " (subtitle \"line_" << i << "\")";
+            out << ")\n";
+        } else {
+            out << "  (prefab"
+                << " (id prefab_" << i << ")"
+                << " (path \"prefabs/room_" << (i % 23) << "/entity_" << i << ".sexp\")"
+                << " (bounds (x " << (i % 100) << ") (y " << (i % 80) << ")"
+                << " (w " << (16 + (i % 6) * 8) << ") (h " << (24 + (i % 4) * 8) << "))"
+                << " (components (component transform) (component render))";
+            if (i % 6 == 0)
+                out << " (components (component physics))";
+            out << ")\n";
+        }
+    }
+
+    out << ")\n";
+    return out.str();
+}
+
+inline std::string make_asset_database_json(int items) {
+    std::ostringstream out;
+    out << "{\"asset_database\":{\"schema\":1,\"root\":\"assets\",\"assets\":[\n";
+
+    for (int i = 0; i < items; ++i) {
+        if (i > 0)
+            out << ",\n";
+
+        if (i % 3 == 0) {
+            out << "  {\"kind\":\"texture\","
+                << "\"id\":\"tex_" << i << "\","
+                << "\"path\":\"textures/zone_" << (i % 17) << "/item_" << i << ".png\","
+                << "\"size\":{\"w\":" << (32 + (i % 5) * 16) << ",\"h\":"
+                << (32 + (i % 7) * 16) << "},"
+                << "\"atlas\":\"ui\","
+                << "\"tags\":[\"zone_" << (i % 17) << "\",\"prop\",\"common\"]";
+            if (i % 4 != 0)
+                out << ",\"mips\":true";
+            if (i % 11 == 0)
+                out << ",\"variant\":\"damaged\"";
+            out << '}';
+        } else if (i % 3 == 1) {
+            out << "  {\"kind\":\"sound\","
+                << "\"id\":\"snd_" << i << "\","
+                << "\"path\":\"audio/events/event_" << i << ".ogg\","
+                << "\"stream\":" << (i % 5 == 0 ? "true" : "false") << ','
+                << "\"volume\":" << (0.5 + static_cast<double>(i % 30) / 100.0) << ','
+                << "\"groups\":[\"sfx\",\"zone_" << (i % 9) << "\"]";
+            if (i % 8 == 0)
+                out << ",\"subtitle\":\"line_" << i << "\"";
+            out << '}';
+        } else {
+            out << "  {\"kind\":\"prefab\","
+                << "\"id\":\"prefab_" << i << "\","
+                << "\"path\":\"prefabs/room_" << (i % 23) << "/entity_" << i << ".sexp\","
+                << "\"bounds\":{\"x\":" << (i % 100) << ",\"y\":" << (i % 80)
+                << ",\"w\":" << (16 + (i % 6) * 8)
+                << ",\"h\":" << (24 + (i % 4) * 8) << "},"
+                << "\"components\":[\"transform\",\"render\"";
+            if (i % 6 == 0)
+                out << ",\"physics\"";
+            out << "]}";
+        }
+    }
+
+    out << "\n]}}\n";
+    return out.str();
+}
+
 } // namespace bench_data

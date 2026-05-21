@@ -414,9 +414,11 @@ void run_yyjson_query_case(const char* name,
 int main() {
     std::string assets_10k = data::make_asset_data(10000);
     std::string assets_50k = data::make_asset_data(50000);
+    std::string asset_database_5k = data::make_asset_database_data(5000);
     std::string wide_10k = data::make_wide_data(10000);
     std::string asset_json_10k = data::make_asset_json(10000);
     std::string asset_json_50k = data::make_asset_json(50000);
+    std::string asset_database_json_5k = data::make_asset_database_json(5000);
     std::string wide_json_10k = data::make_wide_json(10000);
     std::string many_keys_json = data::make_many_keys_json(5000, 24);
 
@@ -425,6 +427,7 @@ int main() {
     run_parse_owned_case("assets_10k_owned", assets_10k, 50);
     run_parse_case("assets_50k", assets_50k, 10);
     run_parse_owned_case("assets_50k_owned", assets_50k, 10);
+    run_parse_case("asset_database_5k", asset_database_5k, 50);
     run_small_files_case("small_files_1k", 1000, 500);
     run_parse_case("strings_plain_5k", data::make_string_data(5000, false, 12), 50);
     run_parse_case("strings_escaped_5k", data::make_string_data(5000, true, 12), 50);
@@ -439,6 +442,7 @@ int main() {
 #if GSEXP_HAVE_YYJSON
     run_yyjson_parse_case("yyjson_assets_10k", asset_json_10k, 50);
     run_yyjson_parse_case("yyjson_assets_50k", asset_json_50k, 10);
+    run_yyjson_parse_case("yyjson_asset_database_5k", asset_database_json_5k, 50);
     run_yyjson_small_files_case("yyjson_small_files_1k", 1000, 500);
     run_yyjson_parse_case("yyjson_strings_plain_5k", data::make_string_json(5000, false, 12), 50);
     run_yyjson_parse_case("yyjson_strings_escaped_5k", data::make_string_json(5000, true, 12), 50);

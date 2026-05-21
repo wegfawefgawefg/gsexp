@@ -1,0 +1,11 @@
+build/
+compile_commands.json
+.cache/
+.clangd/
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+*.out

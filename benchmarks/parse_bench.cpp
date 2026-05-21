@@ -347,6 +347,14 @@ int main() {
                                            20000,
                                            50);
     run_child_iteration_case("iterate_assets_10k", assets_10k, 10000, 200);
+    traversal_bench::run_internal_asset_children_case("iterate_internal_assets_10k",
+                                                      assets_10k,
+                                                      10000,
+                                                      200);
+    traversal_bench::run_child_span_asset_children_case("iterate_child_span_assets_10k",
+                                                        assets_10k,
+                                                        10000,
+                                                        200);
     run_many_key_get_case("query_many_keys_8_last",
                           data::make_many_keys_data(5000, 8),
                           5000,

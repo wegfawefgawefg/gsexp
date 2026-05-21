@@ -68,9 +68,12 @@ Latest verified Plan 11 results on this machine:
 | query_find_arg_many_keys_last | 7.65M queries/s |
 | query_nested_find_arg_5k | 24.47M queries/s |
 | query_internal_nested_find_arg_5k | 75.01M queries/s |
+| iterate_assets_10k | 45.25M visits/s |
+| iterate_internal_assets_10k | 144.72M visits/s |
+| iterate_child_span_assets_10k | 136.00M visits/s |
 | iterate_code_forms_2k | 38.01M visits/s |
-| iterate_internal_code_forms_2k | 231.52M visits/s |
-| iterate_child_span_code_forms_2k | 205.80M visits/s |
+| iterate_internal_code_forms_2k | 254.42M visits/s |
+| iterate_child_span_code_forms_2k | 225.12M visits/s |
 
 Latest yyjson comparison results:
 
@@ -418,6 +421,7 @@ Attempt results so far:
 | Internal ordered code traversal probe | Kept. The benchmark suite now reports `iterate_internal_code_forms_2k`, which walks the same code-shaped fixture through `ParseStorage`/`NodeData` indices instead of public `Node` wrappers. First measured run: public ordered traversal reached 38.21M visits/s, while the internal probe reached 231.52M visits/s over the same 32.40M visits. This is ceiling evidence for child-span/public traversal cleanup, not a new public API. |
 | Open-coded `Node` traversal validity checks | Rejected. `Node::first_child()`, `next_sibling()`, and `children()` tried open-coding their validity checks instead of calling `data()`. The measured run improved the new ordered code traversal probe from 38.01M to 40.14M visits/s and `iterate_assets_10k` from 43.72M to 45.38M visits/s, but broader lookup moved the wrong way: `query_assets_10k` fell from 24.41M to 21.92M q/s, `query_string_view_10k` fell from 17.01M to 16.32M q/s, `query_find_arg_many_keys_last` fell from 7.65M to 7.00M q/s, and `query_nested_find_arg_5k` fell from 24.47M to 22.84M q/s. The simpler shared `data()` path was restored. |
 | Benchmark-only child-span traversal probe | Kept. The benchmark suite now builds a temporary `node -> child range` arena after parsing code-shaped forms and reports `iterate_child_span_code_forms_2k`. First measured run: public ordered traversal reached 38.95M visits/s, direct internal sibling traversal reached 218.26M visits/s, and temporary child-span traversal reached 205.80M visits/s over the same 32.40M visits. Building the span arena took 0.001072 seconds and used about 1.94 MB. This shows contiguous child ranges can close most of the public traversal gap, but a real representation rewrite must avoid adding side storage that is slower than direct internal sibling traversal. |
+| Asset child-span traversal probes | Kept. The benchmark suite now reports internal sibling and temporary child-span variants for the existing asset child traversal benchmark. First measured run: public `iterate_assets_10k` reached 45.25M visits/s, internal sibling traversal reached 144.72M visits/s, and temporary child-span traversal reached 136.00M visits/s over the same 18.00M visits. Building the asset span arena took 0.003273 seconds and used about 4.08 MB. This confirms child spans also close most of the public traversal gap for record-shaped data, but side spans still trail direct internal sibling traversal and add meaningful memory. |
 
 Current pending Plan 11 queue:
 

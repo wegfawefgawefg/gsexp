@@ -339,7 +339,26 @@ int main() {
                                            20000,
                                            50);
     run_child_iteration_case("iterate_assets_10k", assets_10k, 10000, 200);
+    run_many_key_get_case("query_many_keys_8_last",
+                          data::make_many_keys_data(5000, 8),
+                          5000,
+                          200,
+                          "key_7",
+                          7);
+    run_many_key_get_case("query_many_keys_16_last",
+                          data::make_many_keys_data(5000, 16),
+                          5000,
+                          200,
+                          "key_15",
+                          15);
     std::string many_keys_data = data::make_many_keys_data(5000, 24);
+    run_many_key_get_case("query_many_keys_24_last", many_keys_data, 5000, 200, "key_23", 23);
+    run_many_key_get_case("query_many_keys_48_last",
+                          data::make_many_keys_data(5000, 48),
+                          5000,
+                          200,
+                          "key_47",
+                          47);
     run_query_case("query_many_keys_last", many_keys_data, 5000, 200, QueryMode::ManyLast);
     run_query_case("query_find_many_keys_last", many_keys_data, 5000, 200, QueryMode::FindOnly);
     run_query_case("query_child_at_many_keys_last", many_keys_data, 5000, 200, QueryMode::ChildAtValue);

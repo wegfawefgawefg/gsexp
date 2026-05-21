@@ -54,6 +54,10 @@ Latest verified Plan 11 results on this machine:
 | query_internal_asset_database_5k | 44.78M queries/s |
 | query_asset_database_20k | 21.17M queries/s |
 | query_internal_asset_database_20k | 33.77M queries/s |
+| query_many_keys_8_last | 10.91M queries/s |
+| query_many_keys_16_last | 9.28M queries/s |
+| query_many_keys_24_last | 7.02M queries/s |
+| query_many_keys_48_last | 4.14M queries/s |
 | query_many_keys_last | 7.38M queries/s |
 | query_find_many_keys_last | 8.12M queries/s |
 | query_child_at_many_keys_last | 7.54M queries/s |
@@ -397,6 +401,7 @@ Attempt results so far:
 | Skip string scan on immediate special byte | Rejected. After reusing the first escaped-string scan, the decode loop tried checking `is_string_special(text[index])` before calling `find_string_special()` so it could avoid rediscovering a known quote/backslash/newline. The extra scalar branch hurt the parser broadly: `strings_escaped_5k` fell to 642.98 MiB/s, `strings_plain_5k` to 938.77 MiB/s, `assets_10k` to 234.82 MiB/s, and `code_forms_2k` to 229.73 MiB/s. The direct scanner call was restored. |
 | Direct switch for atom scalar tail delimiters | Rejected. The scalar tail after the SSE2 atom scan tried replacing `is_delimiter()`/`is_space()` with one direct `switch` over whitespace and parentheses. This isolated tail-only variant still regressed atom-heavy parse cases badly: `assets_10k` fell to 223.80 MiB/s, `asset_database_5k` to 274.80 MiB/s, `asset_database_20k` to 270.73 MiB/s, and `code_forms_2k` to 232.52 MiB/s. The original helper path was restored. |
 | Insertion sort for lazy wide child indexes | Rejected. Wide-form index construction tried replacing `std::stable_sort()` with a simple insertion sort over the temporary `KeyIndexEntry` vector, targeting the small fixed-ish index sizes in `many_keys_last`. The measured result was too mixed: `query_many_keys_last` reached 7.48M q/s and `query_find_arg_many_keys_last` 8.15M q/s, but `query_find_many_keys_last` fell to 6.45M q/s and `query_child_at_many_keys_last` to 5.62M q/s versus current results of 8.12M and 7.54M. The stable sort builder was restored. |
+| Variable-width many-key lookup benchmarks | Kept. The benchmark suite now measures `get_int()` of the last key for 8, 16, 24, and 48-key records, making lazy-index threshold changes easier to evaluate. First measured run: `query_many_keys_8_last` reached 10.91M q/s with no child indexes, `query_many_keys_16_last` reached 9.28M q/s while building 5k indexes and 80k entries, `query_many_keys_24_last` reached 7.02M q/s with 120k entries, and `query_many_keys_48_last` reached 4.14M q/s with 240k entries. This is measurement support, not a parser behavior change. |
 
 Current pending Plan 11 queue:
 

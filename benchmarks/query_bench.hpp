@@ -212,6 +212,66 @@ inline void run_query_case(const char* name,
     print_storage_stats(name, result);
 }
 
+inline double run_many_key_get_once(gsexp::Node root,
+                                    int iterations,
+                                    std::string_view key,
+                                    int expected_offset) {
+    double sink = 0.0;
+
+    auto start = std::chrono::steady_clock::now();
+    for (int iteration = 0; iteration < iterations; ++iteration) {
+        bool first = true;
+        for (gsexp::Node record : root.children()) {
+            if (first) {
+                first = false;
+                continue;
+            }
+
+            gsexp::FormView record_form(record);
+            std::optional<int> value = record_form.get_int(key);
+            if (!value) {
+                std::cerr << "many-key width benchmark missing expected key\n";
+                std::exit(1);
+            }
+            sink += static_cast<double>(*value - expected_offset);
+        }
+    }
+
+    auto end = std::chrono::steady_clock::now();
+    if (sink == 0.0) {
+        std::cerr << "many-key width benchmark did no work\n";
+        std::exit(1);
+    }
+    return std::chrono::duration<double>(end - start).count();
+}
+
+inline void run_many_key_get_case(const char* name,
+                                  const std::string& text,
+                                  int items,
+                                  int iterations,
+                                  std::string_view key,
+                                  int expected_offset) {
+    gsexp::ParseResult result = gsexp::parse(text);
+    if (!result.ok || result.root_count() == 0) {
+        std::cerr << "parse failed before many-key width benchmark: " << name << "\n";
+        std::exit(1);
+    }
+
+    double best_seconds = 0.0;
+    for (int run = 0; run < 3; ++run) {
+        double seconds = run_many_key_get_once(result.root(0), iterations, key, expected_offset);
+        if (best_seconds == 0.0 || seconds < best_seconds)
+            best_seconds = seconds;
+    }
+
+    std::size_t queries = static_cast<std::size_t>(items) * static_cast<std::size_t>(iterations);
+    double queries_per_second = static_cast<double>(queries) / best_seconds;
+    std::cout << name << " items=" << items << " queries=" << queries
+              << " best_of=3 seconds=" << best_seconds
+              << " queries_per_second=" << queries_per_second << "\n";
+    print_storage_stats(name, result);
+}
+
 inline double run_asset_database_query_once(gsexp::Node root, int iterations) {
     double sink = 0.0;
 

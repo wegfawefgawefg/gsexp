@@ -27,20 +27,20 @@ Latest verified Plan 11 results on this machine:
 
 | Case | Result |
 | --- | ---: |
-| assets_10k | 250.17 MiB/s |
-| assets_50k | 215.88 MiB/s |
-| asset_database_5k | 319.38 MiB/s |
+| assets_10k | 257.58 MiB/s |
+| assets_50k | 229.19 MiB/s |
+| asset_database_5k | 318.92 MiB/s |
 | asset_database_5k_owned | 325.98 MiB/s |
-| asset_database_20k | 297.23 MiB/s |
+| asset_database_20k | 303.95 MiB/s |
 | asset_database_20k_owned | 301.14 MiB/s |
 | asset_database_5k_file_read | 382.93 MiB/s |
 | asset_database_5k_file_owned | 179.13 MiB/s |
-| small_files_1k | 212.15 MiB/s |
-| strings_plain_5k | 1112.12 MiB/s |
-| strings_escaped_5k | 738.99 MiB/s |
-| deep_1k | 222.41 MiB/s |
-| code_forms_2k | 261.06 MiB/s |
-| wide_10k | 384.71 MiB/s |
+| small_files_1k | 214.27 MiB/s |
+| strings_plain_5k | 1132.27 MiB/s |
+| strings_escaped_5k | 747.18 MiB/s |
+| deep_1k | 238.94 MiB/s |
+| code_forms_2k | 261.77 MiB/s |
+| wide_10k | 367.75 MiB/s |
 | query_assets_10k | 24.34M queries/s |
 | query_internal_assets_10k | 38.91M queries/s |
 | query_internal_ordered_assets_10k | 55.83M queries/s |
@@ -65,15 +65,15 @@ Latest yyjson comparison results:
 
 | Equivalent case | gsexp | yyjson | yyjson/gsexp |
 | --- | ---: | ---: | ---: |
-| assets_10k parse | 250.17 MiB/s | 674.39 MiB/s | 2.70x |
-| assets_50k parse | 215.88 MiB/s | 717.71 MiB/s | 3.32x |
-| asset_database_5k parse | 319.38 MiB/s | 831.41 MiB/s | 2.60x |
-| asset_database_20k parse | 297.23 MiB/s | 779.07 MiB/s | 2.62x |
-| small_files_1k parse | 212.15 MiB/s | 598.94 MiB/s | 2.82x |
-| strings_plain_5k parse | 1112.12 MiB/s | 1422.72 MiB/s | 1.28x |
-| strings_escaped_5k parse | 738.99 MiB/s | 1231.57 MiB/s | 1.67x |
-| code_forms_2k parse | 261.06 MiB/s | 695.02 MiB/s | 2.66x |
-| wide_10k parse | 384.71 MiB/s | 843.56 MiB/s | 2.19x |
+| assets_10k parse | 257.58 MiB/s | 668.21 MiB/s | 2.59x |
+| assets_50k parse | 229.19 MiB/s | 695.75 MiB/s | 3.04x |
+| asset_database_5k parse | 318.92 MiB/s | 757.36 MiB/s | 2.37x |
+| asset_database_20k parse | 303.95 MiB/s | 762.21 MiB/s | 2.51x |
+| small_files_1k parse | 214.27 MiB/s | 570.06 MiB/s | 2.66x |
+| strings_plain_5k parse | 1132.27 MiB/s | 1464.34 MiB/s | 1.29x |
+| strings_escaped_5k parse | 747.18 MiB/s | 1314.06 MiB/s | 1.76x |
+| code_forms_2k parse | 261.77 MiB/s | 700.98 MiB/s | 2.68x |
+| wide_10k parse | 367.75 MiB/s | 850.35 MiB/s | 2.31x |
 | assets_10k lookup | 24.34M queries/s | 126.06M queries/s | 5.18x |
 | asset_database_5k lookup | 22.57M queries/s | 83.31M queries/s | 3.69x |
 | asset_database_20k lookup | 21.17M queries/s | 77.52M queries/s | 3.66x |
@@ -393,6 +393,7 @@ Attempt results so far:
 | `FormView` resume-child hint | Rejected. `FormView` tried storing the last matched child node and starting the next small-form lookup after that child, wrapping once to preserve normal lookup semantics. This helped ordered repeated access, with `query_nested_find_arg_5k` improving to 27.03M q/s and `query_asset_database_5k` to 23.16M q/s, but it regressed broad single-key lookups and common lookup enough to reject: `query_first_10k` fell to 13.64M q/s, `query_last_10k` to 9.36M q/s, and `query_assets_10k` to 23.41M q/s versus current results of 15.53M, 11.35M, and 24.34M. The stateless `FormView` lookup path was restored. |
 | Prepared direct atom comparison state | Rejected. Direct small-form lookup tried precomputing the caller key pointer/size and source size once per scan, then comparing candidate atom heads through that prepared state. It improved some mixed lookup noise, with `query_asset_database_5k` at 23.37M q/s, but did not beat the broader current lookup baseline: `query_assets_10k` was 24.32M q/s versus 24.34M, `query_string_view_10k` fell to 15.96M q/s versus 16.77M, and `query_nested_find_arg_5k` fell to 23.02M q/s versus 24.19M. The previous direct comparison helper was restored. |
 | List head metadata in `text_size` | Rejected. List nodes tried storing their first child/head index in the otherwise-unused public text-size field while keeping `text_offset` as the parse-time tail. This avoided reading `first_child` in some `FormView` paths without widening `NodeData`, but it regressed the broader lookup suite: `query_assets_10k` fell to 21.54M q/s, `query_string_view_10k` to 13.85M q/s, and `query_nested_find_arg_5k` to 19.26M q/s. The mixed asset database query improved to 24.53M q/s, but the tradeoff was too narrow, so the normal `first_child` head source was restored. |
+| Reuse initial escaped-string scan | Kept. `parse_string()` already scanned the first plain chunk to decide whether a string could stay source-backed; escaped strings then scanned that same chunk again inside the decode loop. The parser now copies the first scanned chunk into `decoded_text` before entering the loop, avoiding that duplicate scan without changing representation or API. The measured parser cases stayed healthy: `strings_escaped_5k` improved from 738.99 to 747.18 MiB/s, `strings_plain_5k` measured 1132.27 MiB/s, `assets_10k` 257.58 MiB/s, and `code_forms_2k` 261.77 MiB/s. |
 
 Current pending Plan 11 queue:
 

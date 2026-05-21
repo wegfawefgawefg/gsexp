@@ -382,6 +382,13 @@ class Parser {
         }
 
         std::size_t decoded_start = prepare_decoded_string();
+        if (scan > index) {
+            storage->decoded_text.insert(storage->decoded_text.end(),
+                                         text.data() + index,
+                                         text.data() + scan);
+            index = scan;
+        }
+
         while (index < text.size()) {
             std::size_t special = find_string_special(text, index);
             if (special > index) {

@@ -2,12 +2,15 @@
 
 #include <algorithm>
 #include <charconv>
+#include <cmath>
 #include <cstring>
+#include <limits>
 
 namespace gsexp {
 namespace {
 
 constexpr std::uint32_t indexed_child_threshold = 16;
+constexpr float invalid_cached_float = std::numeric_limits<float>::infinity();
 
 std::string_view node_text(const ParseStorage& storage, const NodeData& node) {
     if (node.text_size == 0)
@@ -199,6 +202,34 @@ const NodeData* find_arg_data(const ParseStorage& storage,
     return &storage.nodes[value_index];
 }
 
+std::uint32_t find_arg_index(const ParseStorage& storage,
+                             std::uint32_t list_index,
+                             const NodeData& list,
+                             std::string_view searched_head,
+                             std::size_t arg_index) {
+    if (list.type != ValueType::List)
+        return invalid_node;
+
+    std::uint32_t child_index = find_child_index(storage, list_index, list, searched_head);
+    if (child_index == invalid_node || child_index >= storage.nodes.size())
+        return invalid_node;
+
+    const NodeData& child = storage.nodes[child_index];
+    if (child.type != ValueType::List || child.first_child == invalid_node)
+        return invalid_node;
+
+    std::uint32_t value_index = storage.nodes[child.first_child].next_sibling;
+    for (std::size_t offset = 0; offset < arg_index && value_index != invalid_node; ++offset) {
+        if (value_index >= storage.nodes.size())
+            return invalid_node;
+        value_index = storage.nodes[value_index].next_sibling;
+    }
+
+    if (value_index == invalid_node || value_index >= storage.nodes.size())
+        return invalid_node;
+    return value_index;
+}
+
 std::optional<int> parse_int(std::string_view text) {
     if (!looks_like_integer(text))
         return std::nullopt;
@@ -227,6 +258,28 @@ std::optional<float> parse_float(std::string_view text) {
     if (result.ec == std::errc{} && result.ptr == end)
         return parsed;
     return std::nullopt;
+}
+
+std::optional<float> cached_float(const ParseStorage& storage, std::uint32_t node_index) {
+    if (node_index >= storage.nodes.size())
+        return std::nullopt;
+
+    const NodeData& node = storage.nodes[node_index];
+    if (node.type != ValueType::Atom)
+        return std::nullopt;
+
+    if (storage.float_cache.empty())
+        storage.float_cache.resize(storage.nodes.size(), std::numeric_limits<float>::quiet_NaN());
+
+    float cached = storage.float_cache[node_index];
+    if (std::isinf(cached))
+        return std::nullopt;
+    if (!std::isnan(cached))
+        return cached;
+
+    std::optional<float> parsed = parse_float(node_text(storage, node));
+    storage.float_cache[node_index] = parsed ? *parsed : invalid_cached_float;
+    return parsed;
 }
 
 } // namespace
@@ -281,10 +334,8 @@ std::optional<float> FormView::get_float(std::string_view searched_head) const {
     if (!storage || !form_data)
         return std::nullopt;
 
-    const NodeData* value = find_arg_data(*storage, form.index, *form_data, searched_head, 0);
-    if (!value || value->type != ValueType::Atom)
-        return std::nullopt;
-    return parse_float(node_text(*storage, *value));
+    std::uint32_t value_index = find_arg_index(*storage, form.index, *form_data, searched_head, 0);
+    return cached_float(*storage, value_index);
 }
 
 std::optional<std::string> FormView::get_string(std::string_view searched_head) const {

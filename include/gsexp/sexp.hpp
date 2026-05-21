@@ -85,6 +85,7 @@ struct ParseStorage {
     std::vector<ChildCountOverflow> child_count_overflows;
     mutable std::vector<ChildIndexCache> child_indexes;
     mutable std::vector<std::uint16_t> child_index_lookup;
+    mutable std::vector<float> float_cache;
 };
 
 struct StorageStats {
@@ -102,6 +103,8 @@ struct StorageStats {
     std::size_t child_index_lookup_bytes = 0;
     std::size_t child_index_entry_count = 0;
     std::size_t child_index_entry_capacity = 0;
+    std::size_t float_cache_capacity = 0;
+    std::size_t float_cache_bytes = 0;
     std::size_t root_count = 0;
     std::size_t approximate_bytes = 0;
 };

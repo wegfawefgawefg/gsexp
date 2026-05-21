@@ -68,6 +68,7 @@ Latest verified Plan 11 results on this machine:
 | query_find_arg_many_keys_last | 7.65M queries/s |
 | query_nested_find_arg_5k | 24.47M queries/s |
 | query_internal_nested_find_arg_5k | 75.01M queries/s |
+| iterate_code_forms_2k | 38.01M visits/s |
 
 Latest yyjson comparison results:
 
@@ -411,6 +412,7 @@ Attempt results so far:
 | First-vs-repeated lookup transition benchmarks | Kept. The benchmark suite now reports cold first-pass and warmed repeated lookup rows for common asset queries and 16-key indexed forms. First measured run: `query_assets_10k_cold_once` reached 16.70M q/s and `query_assets_10k_warm_repeated` reached 20.78M q/s, while the normal blended `query_assets_10k` row reached 24.41M q/s. The wide-index warmup cost is much clearer: `query_many_keys_16_cold_once` reached 1.39M q/s while `query_many_keys_16_warm_repeated` reached 8.63M q/s. This is measurement support for future stateful lookup work, not a public API change. |
 | Adaptive build-on-second wide index | Rejected. Wide forms tried direct-scanning the first lookup and building the lazy index only on a later lookup, tracked by a storage-owned byte vector. It helped the target cold case: `query_many_keys_16_cold_once` rose from 1.39M to 6.88M q/s, and `query_many_keys_last` rose from 7.58M to 8.28M q/s. The broader indexed suite did not justify the extra memory or policy: `query_many_keys_48_last` fell from 4.21M to 3.45M q/s, `query_find_arg_many_keys_last` fell from 7.65M to 6.90M q/s, and each indexed document gained a dense `child_index_seen` byte vector. The eager first-lookup index build was restored. |
 | Node-index integer extraction path | Rejected. `get_int()` tried using the same `find_arg_index()` node-index path as `get_float()` so future numeric metadata could key consistently by atom node. The measured run did not justify the extra index handoff: `query_assets_10k` rose from 24.41M to 25.50M q/s, but `query_first_10k` fell from 15.73M to 13.58M q/s, `query_many_keys_16_last` fell from 9.63M to 9.11M q/s, `query_many_keys_last` fell from 7.58M to 6.81M q/s, and `query_nested_find_arg_5k` fell from 24.47M to 21.32M q/s. The direct `find_arg_data()` pointer path was restored. |
+| Ordered code-form traversal benchmark | Kept. The benchmark suite now reports `iterate_code_forms_2k`, a non-record ordered traversal probe over the generated code-shaped form fixture. It walks `first_child()` and `next_sibling()` in source order without named lookup. First measured run: 32.40M visits in 0.852397 seconds, or 38.01M visits/s, with 162,016 nodes and about 4.20 MB retained. This is measurement support for future child-span work on code-like and tuple-like data, not a parser behavior change. |
 
 Current pending Plan 11 queue:
 

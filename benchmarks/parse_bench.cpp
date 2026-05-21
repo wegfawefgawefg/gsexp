@@ -5,6 +5,7 @@
 #include "query_bench.hpp"
 #include "query_transition_bench.hpp"
 #include "scan_probe.hpp"
+#include "traversal_bench.hpp"
 #include "yyjson_bench.hpp"
 
 #include <chrono>
@@ -288,6 +289,7 @@ int main() {
     std::string asset_database_5k = data::make_asset_database_data(5000);
     std::string asset_database_20k = data::make_asset_database_data(20000);
     std::string wide_10k = data::make_wide_data(10000);
+    std::string code_forms_2k = data::make_code_data(2000);
     std::string asset_json_10k = data::make_asset_json(10000);
     std::string asset_json_50k = data::make_asset_json(50000);
     std::string asset_database_json_5k = data::make_asset_database_json(5000);
@@ -318,7 +320,7 @@ int main() {
     run_parse_case("strings_plain_5k", data::make_string_data(5000, false, 12), 50);
     run_parse_case("strings_escaped_5k", data::make_string_data(5000, true, 12), 50);
     run_parse_case("deep_1k", data::make_deep_data(1000), 500);
-    run_parse_case("code_forms_2k", data::make_code_data(2000), 50);
+    run_parse_case("code_forms_2k", code_forms_2k, 50);
     run_parse_case("wide_10k", wide_10k, 50);
     run_query_case("query_assets_10k", assets_10k, 10000, 100, QueryMode::Common);
     query_transition_bench::run_asset_common_transition_case("query_assets_10k_cold_once",
@@ -374,6 +376,7 @@ int main() {
     run_query_case("query_find_arg_many_keys_last", many_keys_data, 5000, 200, QueryMode::FindArgValue);
     run_nested_find_arg_case("query_nested_find_arg_5k", nested_arg_data, 5000, 200);
     run_internal_nested_find_arg_case("query_internal_nested_find_arg_5k", nested_arg_data, 5000, 200);
+    traversal_bench::run_ordered_code_case("iterate_code_forms_2k", code_forms_2k, 200);
     scan_probe::run_case("scan_probe_asset_database_5k", asset_database_5k, 1000);
 #if GSEXP_HAVE_YYJSON
     yyjson_bench::run_parse_case("yyjson_assets_10k", asset_json_10k, 50);

@@ -23,41 +23,45 @@ Older optimization plans and detailed results are archived in
 
 ## Current Results
 
-Latest verified Plan 7 results on this machine:
+Latest verified Plan 9 results on this machine:
 
 | Case | Result |
 | --- | ---: |
-| assets_10k | 215.50 MiB/s |
-| assets_50k | 176.79 MiB/s |
-| asset_database_5k | 258.69 MiB/s |
-| asset_database_5k_file_owned | 162.86 MiB/s |
-| small_files_1k | 180.79 MiB/s |
-| strings_plain_5k | 917.71 MiB/s |
-| strings_escaped_5k | 349.42 MiB/s |
-| deep_1k | 181.95 MiB/s |
-| wide_10k | 273.24 MiB/s |
-| query_assets_10k | 15.34M queries/s |
-| query_first_10k | 13.72M queries/s |
-| query_last_10k | 8.60M queries/s |
-| query_missing_10k | 11.43M queries/s |
-| query_string_view_10k | 13.69M queries/s |
-| query_many_keys_last | 4.64M queries/s |
-| query_find_many_keys_last | 4.19M queries/s |
-| query_child_at_many_keys_last | 4.62M queries/s |
+| assets_10k | 207.44 MiB/s |
+| assets_50k | 172.33 MiB/s |
+| asset_database_5k | 253.60 MiB/s |
+| asset_database_5k_owned | 240.27 MiB/s |
+| asset_database_5k_file_read | 365.26 MiB/s |
+| asset_database_5k_file_owned | 150.52 MiB/s |
+| small_files_1k | 166.40 MiB/s |
+| strings_plain_5k | 840.54 MiB/s |
+| strings_escaped_5k | 524.48 MiB/s |
+| deep_1k | 174.29 MiB/s |
+| wide_10k | 278.41 MiB/s |
+| query_assets_10k | 14.66M queries/s |
+| query_first_10k | 13.79M queries/s |
+| query_last_10k | 7.88M queries/s |
+| query_missing_10k | 10.59M queries/s |
+| query_string_view_10k | 13.14M queries/s |
+| query_text_only_10k | 41.07M queries/s |
+| query_symbol_compare_10k | 36.15M queries/s |
+| query_many_keys_last | 4.02M queries/s |
+| query_find_many_keys_last | 3.63M queries/s |
+| query_child_at_many_keys_last | 3.58M queries/s |
 
-Plan 6 yyjson comparison results:
+Latest yyjson comparison results:
 
 | Equivalent case | gsexp | yyjson | yyjson/gsexp |
 | --- | ---: | ---: | ---: |
-| assets_10k parse | 215.50 MiB/s | 703.29 MiB/s | 3.26x |
-| assets_50k parse | 176.79 MiB/s | 709.70 MiB/s | 4.01x |
-| asset_database_5k parse | 258.69 MiB/s | 757.89 MiB/s | 2.93x |
-| small_files_1k parse | 180.79 MiB/s | 573.00 MiB/s | 3.17x |
-| strings_plain_5k parse | 917.71 MiB/s | 1339.24 MiB/s | 1.46x |
-| strings_escaped_5k parse | 349.42 MiB/s | 1123.13 MiB/s | 3.21x |
-| wide_10k parse | 273.24 MiB/s | 761.25 MiB/s | 2.79x |
-| assets_10k lookup | 15.34M queries/s | 109.98M queries/s | 7.17x |
-| many_keys_last lookup | 4.64M queries/s | 12.997M queries/s | 2.80x |
+| assets_10k parse | 207.44 MiB/s | 623.49 MiB/s | 3.01x |
+| assets_50k parse | 172.33 MiB/s | 662.27 MiB/s | 3.84x |
+| asset_database_5k parse | 253.60 MiB/s | 696.08 MiB/s | 2.74x |
+| small_files_1k parse | 166.40 MiB/s | 546.02 MiB/s | 3.28x |
+| strings_plain_5k parse | 840.54 MiB/s | 1225.40 MiB/s | 1.46x |
+| strings_escaped_5k parse | 524.48 MiB/s | 1116.04 MiB/s | 2.13x |
+| wide_10k parse | 278.41 MiB/s | 774.15 MiB/s | 2.78x |
+| assets_10k lookup | 14.66M queries/s | 105.80M queries/s | 7.22x |
+| many_keys_last lookup | 4.02M queries/s | 11.70M queries/s | 2.91x |
 
 These are equivalent data shapes, not byte-identical files. The JSON fixtures
 are generated beside the S-expression fixtures and measured by each format's
@@ -157,6 +161,32 @@ Plan 8 optimization attempt results:
 | Query-only microbenchmarks | Kept. `query_find_many_keys_last` and `query_child_at_many_keys_last` show lookup/traversal cost separately from extraction. |
 | Sorted-vector child index cache | Kept. `query_many_keys_last` improved to 4.64M queries/s on the latest run and child-index storage is included in `approximate_bytes`. |
 | Owned file-load benchmark | Kept. `asset_database_5k_file_owned` measured 162.86 MiB/s on the latest run, which includes cached file read plus `parse_owned`. |
+
+Important Plan 9 retained changes:
+
+1. Text-access query microbenchmarks now measure value `Node::text()` access and
+   repeated symbol comparisons separately from normal extraction.
+2. The asset database benchmark now reports in-memory parse, owned parse,
+   cached file-read-only, and combined file-read-plus-parse paths.
+3. Escaped string parsing copies contiguous plain chunks into the decoded arena
+   instead of decoding every post-escape byte one character at a time.
+4. Failed escaped strings are covered by tests that verify decoded arena
+   rollback leaves no public roots and no decoded string storage.
+5. Numeric extraction now accepts leading `+` consistently with
+   `looks_like_integer` and `looks_like_float`, while keeping invalid numeric
+   rejection tests.
+
+Plan 9 optimization attempt results:
+
+| Attempt | Result |
+| --- | --- |
+| Text-access microbenchmarks | Kept. Current run reports `query_text_only_10k` at 41.07M accesses/s and `query_symbol_compare_10k` at 36.15M comparisons/s. These are measurement tools, not public APIs. |
+| Remove numeric pre-scan before `from_chars` | Rejected. It did not improve the numeric query cases on the measured run. The pre-scan stays, with a small fix for leading `+` consistency. |
+| Fast key comparison helper | Rejected. Direct text equality helpers did not produce a convincing query-suite win and added internal surface area, so the code returned to the simpler `node_text(...) == symbol` path. |
+| Escaped string chunk copying | Kept. `strings_escaped_5k` improved from the Plan 8 baseline of 349.42 MiB/s to 524.48 MiB/s on the latest run. |
+| Decoded arena rollback test | Kept. Unterminated escaped strings are tested for no public roots, zero decoded string count, and zero decoded bytes. |
+| Query cache locality follow-up | Measured, no further structure change. The wide-key query cases remain noisy and did not justify replacing the sorted lazy child-index cache in this pass. |
+| Owned file-load benchmark split | Kept. Latest run: in-memory parse 253.60 MiB/s, owned parse 240.27 MiB/s, cached file read 365.26 MiB/s, combined file-read-plus-parse 150.52 MiB/s. |
 
 ## Optimization Plan 9
 

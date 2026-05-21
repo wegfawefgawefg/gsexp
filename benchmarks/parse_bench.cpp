@@ -161,18 +161,52 @@ double run_parse_owned_file_once(const char* name, const char* path, int iterati
     return std::chrono::duration<double>(end - start).count();
 }
 
+double run_file_read_once(const char* name, const char* path, int iterations) {
+    std::size_t bytes_read = 0;
+
+    auto start = std::chrono::steady_clock::now();
+    for (int i = 0; i < iterations; ++i) {
+        std::string text = read_file_or_exit(path);
+        bytes_read += text.size();
+    }
+    auto end = std::chrono::steady_clock::now();
+    if (bytes_read == 0) {
+        std::cerr << "file read benchmark read no bytes: " << name << "\n";
+        std::exit(1);
+    }
+    return std::chrono::duration<double>(end - start).count();
+}
+
+void write_benchmark_file(const char* path, const std::string& text) {
+    std::ofstream file(path, std::ios::binary);
+    if (!file) {
+        std::cerr << "failed to write benchmark file: " << path << "\n";
+        std::exit(1);
+    }
+    file << text;
+}
+
+void run_file_read_case(const char* name, const char* path, const std::string& text, int iterations) {
+    write_benchmark_file(path, text);
+
+    double best_seconds = 0.0;
+    for (int run = 0; run < 3; ++run) {
+        double seconds = run_file_read_once(name, path, iterations);
+        if (best_seconds == 0.0 || seconds < best_seconds)
+            best_seconds = seconds;
+    }
+
+    double mib = (static_cast<double>(text.size()) * iterations) / (1024.0 * 1024.0);
+    std::cout << name << " bytes=" << text.size() << " iterations=" << iterations
+              << " best_of=3 seconds=" << best_seconds
+              << " mib_per_second=" << (mib / best_seconds) << "\n";
+}
+
 void run_parse_owned_file_case(const char* name,
                                const char* path,
                                const std::string& text,
                                int iterations) {
-    {
-        std::ofstream file(path, std::ios::binary);
-        if (!file) {
-            std::cerr << "failed to write benchmark file: " << path << "\n";
-            std::exit(1);
-        }
-        file << text;
-    }
+    write_benchmark_file(path, text);
 
     double best_seconds = 0.0;
     for (int run = 0; run < 3; ++run) {
@@ -238,6 +272,8 @@ enum class QueryMode {
     Last,
     Missing,
     StringView,
+    TextOnly,
+    SymbolCompare,
     ManyLast,
     FindOnly,
     ChildAtValue,
@@ -254,7 +290,38 @@ double run_query_once(gsexp::Node root, int iterations, QueryMode mode) {
                 first = false;
                 continue;
             }
-            if (mode == QueryMode::Common) {
+            if (mode == QueryMode::TextOnly) {
+                bool field_first = true;
+                for (gsexp::Node field : asset.children()) {
+                    if (field_first) {
+                        field_first = false;
+                        continue;
+                    }
+                    gsexp::Node value = field.child_at(1);
+                    if (!value.valid()) {
+                        std::cerr << "text-only query benchmark missing value\n";
+                        std::exit(1);
+                    }
+                    sink += static_cast<double>(value.text().size());
+                }
+            } else if (mode == QueryMode::SymbolCompare) {
+                bool saw_path = false;
+                bool field_first = true;
+                for (gsexp::Node field : asset.children()) {
+                    if (field_first) {
+                        field_first = false;
+                        continue;
+                    }
+                    gsexp::Node head = field.head();
+                    if (head.is_atom("path"))
+                        saw_path = true;
+                    sink += head.is_atom("missing") ? 2.0 : 1.0;
+                }
+                if (!saw_path) {
+                    std::cerr << "symbol-compare query benchmark missing path\n";
+                    std::exit(1);
+                }
+            } else if (mode == QueryMode::Common) {
                 std::optional<int> id = gsexp::extract_int(asset, "id");
                 std::optional<float> x = gsexp::extract_float(asset, "x");
                 std::optional<float> y = gsexp::extract_float(asset, "y");
@@ -349,6 +416,8 @@ void run_query_case(const char* name, const std::string& text, int items, int it
     }
 
     std::size_t fields_per_item = mode == QueryMode::Common ? 4u : 1u;
+    if (mode == QueryMode::TextOnly || mode == QueryMode::SymbolCompare)
+        fields_per_item = 8u;
     std::size_t queries =
         static_cast<std::size_t>(items) * static_cast<std::size_t>(iterations) * fields_per_item;
     double queries_per_second = static_cast<double>(queries) / best_seconds;
@@ -379,6 +448,11 @@ int main() {
     run_parse_case("assets_50k", assets_50k, 10);
     run_parse_owned_case("assets_50k_owned", assets_50k, 10);
     run_parse_case("asset_database_5k", asset_database_5k, 50);
+    run_parse_owned_case("asset_database_5k_owned", asset_database_5k, 50);
+    run_file_read_case("asset_database_5k_file_read",
+                       "/tmp/gsexp_asset_database_5k.sexp",
+                       asset_database_5k,
+                       50);
     run_parse_owned_file_case("asset_database_5k_file_owned",
                               "/tmp/gsexp_asset_database_5k.sexp",
                               asset_database_5k,
@@ -393,6 +467,8 @@ int main() {
     run_query_case("query_last_10k", assets_10k, 10000, 500, QueryMode::Last);
     run_query_case("query_missing_10k", assets_10k, 10000, 500, QueryMode::Missing);
     run_query_case("query_string_view_10k", assets_10k, 10000, 500, QueryMode::StringView);
+    run_query_case("query_text_only_10k", assets_10k, 10000, 200, QueryMode::TextOnly);
+    run_query_case("query_symbol_compare_10k", assets_10k, 10000, 200, QueryMode::SymbolCompare);
     std::string many_keys_data = data::make_many_keys_data(5000, 24);
     run_query_case("query_many_keys_last", many_keys_data, 5000, 200, QueryMode::ManyLast);
     run_query_case("query_find_many_keys_last", many_keys_data, 5000, 200, QueryMode::FindOnly);

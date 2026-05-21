@@ -72,6 +72,41 @@ void test_int_range() {
     require(!gsexp::extract_int(result.root(0), "value").has_value(), "reject out-of-range int");
 }
 
+void test_numeric_rejections() {
+    gsexp::ParseResult result = gsexp::parse(R"(
+(root
+  (good_int +42)
+  (bad_int 12abc)
+  (sign_only +)
+  (good_float +1.25)
+  (bad_float 1.25abc)
+  (bad_exp 1e)
+  (bad_nan nan)
+  (bad_inf inf))
+)");
+
+    require(result.ok, "parse numeric rejection input");
+    gsexp::Node root = result.root(0);
+    require(gsexp::extract_int(root, "good_int") == 42, "accept plus int");
+    require(!gsexp::extract_int(root, "bad_int").has_value(), "reject int suffix");
+    require(!gsexp::extract_int(root, "sign_only").has_value(), "reject sign-only int");
+    require(gsexp::extract_float(root, "good_float").has_value(), "accept plus float");
+    require(!gsexp::extract_float(root, "bad_float").has_value(), "reject float suffix");
+    require(!gsexp::extract_float(root, "bad_exp").has_value(), "reject incomplete exponent");
+    require(!gsexp::extract_float(root, "bad_nan").has_value(), "reject nan float");
+    require(!gsexp::extract_float(root, "bad_inf").has_value(), "reject inf float");
+}
+
+void test_failed_escaped_string_rollback() {
+    gsexp::ParseResult result = gsexp::parse("(root (text \"line\\nunterminated)");
+    require(!result.ok, "escaped unterminated string fails");
+    require(result.root_count() == 0, "failed escaped string has no public roots");
+
+    gsexp::StorageStats stats = result.storage_stats();
+    require(stats.decoded_string_count == 0, "failed escaped string has no decoded string count");
+    require(stats.decoded_string_bytes == 0, "failed escaped string rolls decoded bytes back");
+}
+
 void test_errors_and_roots() {
     gsexp::ParseResult missing = gsexp::parse("(root");
     require(!missing.ok, "missing paren fails");
@@ -106,6 +141,8 @@ int main() {
     test_parse_owned();
     test_escaped_string_storage();
     test_int_range();
+    test_numeric_rejections();
+    test_failed_escaped_string_rollback();
     test_errors_and_roots();
 
     std::cout << "gsexp_tests passed\n";

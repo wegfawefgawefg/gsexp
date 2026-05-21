@@ -346,6 +346,8 @@ std::optional<int> extract_int(Node list, std::string_view symbol) {
 
     std::string_view text = node_text(*list.storage, *value);
     if (looks_like_integer(text)) {
+        if (!text.empty() && text.front() == '+')
+            text.remove_prefix(1);
         int parsed = 0;
         const char* begin = text.data();
         const char* end = begin + text.size();
@@ -371,6 +373,8 @@ std::optional<float> extract_float(Node list, std::string_view symbol) {
 
     std::string_view text = node_text(*list.storage, *value);
     if (looks_like_float(text) || looks_like_integer(text)) {
+        if (!text.empty() && text.front() == '+')
+            text.remove_prefix(1);
         float parsed = 0.0f;
         const char* begin = text.data();
         const char* end = begin + text.size();

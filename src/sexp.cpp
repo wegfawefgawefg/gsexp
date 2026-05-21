@@ -348,9 +348,18 @@ class Parser {
 
         std::size_t decoded_start = prepare_decoded_string();
         while (index < text.size()) {
+            std::size_t special = find_string_special(text, index);
+            if (special > index) {
+                storage->decoded_text.insert(storage->decoded_text.end(),
+                                             text.data() + index,
+                                             text.data() + special);
+                index = special;
+            }
+            if (index >= text.size())
+                break;
+
             char ch = text[index];
             ++index;
-
             if (ch == '\\' && index < text.size()) {
                 char esc = text[index];
                 ++index;

@@ -70,266 +70,11 @@ Plan 3 optimization attempts.
 | 2026-05-21 | Store list vectors in `std::pmr::monotonic_buffer_resource` | Allocation-heavy parse cases | Reverted; slower across most expanded benchmarks |
 | 2026-05-21 | Add flat-node parser prototype benchmark | `flat_assets_50k`, `flat_wide_10k` | Kept as benchmark; shows large ceiling but not public API yet |
 
-## Optimization Plan 2
+## Archived Plans
 
-Constraint: keep the normal user-facing API centered on `gsexp::parse(text)`.
-Do not add a second public parse API as a shortcut around slow internals unless
-a measured ownership/lifetime problem proves it is necessary.
-
-Current limiting shape:
-
-```cpp
-struct Value {
-    ValueType type;
-    std::string text;
-    std::vector<Value> list;
-};
-```
-
-This is easy to use, but expensive to build for large files because every list
-owns a vector and many atoms own strings.
-
-Candidate attempts:
-
-1. Lazy numeric parsing.
-   Store parsed atoms as text first and convert only in `extract_int` and
-   `extract_float`. This is now the chosen model because it is closer to normal
-   S-expression reader behavior and keeps `parse(text)` simple.
-
-2. Compact child storage for common short lists.
-   Most config data contains many `(key value)` lists. Try an internal
-   small-vector style representation or another low-overhead way to avoid heap
-   allocations for tiny lists while keeping `Value::list` usable to callers.
-
-3. Arena-backed allocation.
-   Use a parser-owned arena or monotonic resource internally to reduce allocation
-   overhead, but keep returned `ParseResult` owning its data normally. This is
-   only worth keeping if the public result remains safe after the input string
-   goes out of scope.
-
-4. Reduce repeated key allocation and comparison.
-   Repeated keys such as `asset`, `id`, `path`, `type`, and `tags` dominate
-   asset-style files. Try interning or compact key handling internally without
-   requiring callers to use interned symbols.
-
-5. Flat node construction with tree materialization at the edge.
-   Parse into contiguous internal nodes first, then materialize the public
-   `Value` tree. This may improve parser locality but still pays the public tree
-   construction cost. Keep only if measurements show that the staging step is
-   net-positive.
-
-6. Reconsider public `Value` only if the above hits a hard ceiling.
-   The existing recursive `std::vector<Value>` API may cap performance. Any
-   public shape change must be deliberate, documented, and justified by measured
-   gains large enough to offset the usability/API cost.
-
-## Optimization Plan 2 Status
-
-1. Lazy numeric parsing.
-   - Kept. Parsed atoms remain `ValueType::Atom`; numeric helpers interpret atom
-     text when requested.
-   - This replaced the earlier compatibility-safe numeric-start guard because
-     the all-atom reader model is more standard for S-expressions and better for
-     future evaluator layers.
-   - `is_symbol()` remains as a compatibility alias for `is_atom()`.
-   - Follow-up ASCII classification and bulk atom column advancement was kept.
-     It removes per-character locale checks and line/column function calls from
-     the atom hot path.
-
-2. Compact child storage for common short lists.
-   - `reserve(2)` for parsed lists was kept.
-   - `reserve(4)` was tested twice and rejected because it slowed the large
-     asset-style benchmark.
-   - Building list nodes directly in the output `Value` was kept. It removes a
-     temporary `Value` and final move assignment per list.
-   - Filling output values directly was kept. It avoids assigning a fresh
-     default `Value` over parser-local values that are usually already empty.
-   - A true small-vector representation would require changing `Value::list`
-     away from `std::vector<Value>`, which is a public shape change.
-
-3. Arena-backed allocation.
-   - Not implemented under the current public API. Returned `ParseResult` owns
-     recursive `std::string` and `std::vector<Value>` members directly, so an
-     internal arena cannot back the returned data without changing public
-     ownership semantics.
-
-4. Reduce repeated key allocation and comparison.
-   - No separate key-interning change was kept. Short repeated keys are usually
-     handled by small-string optimization, and the current benchmark measures
-     parse/tree construction rather than repeated `find_child` queries.
-
-5. Flat node construction with tree materialization at the edge.
-   - Not implemented. It would still need to materialize the public recursive
-     `Value` tree, so it is unlikely to remove the main allocation cost without
-     a larger public representation change.
-
-6. Reconsider public `Value`.
-   - Started with the atom-based reader model. This is a deliberate source-level
-     cleanup: callers should inspect `ValueType::Atom` and use helper functions
-     for numeric interpretation.
-   - Further large gains probably require another deliberate `Value`
-     representation redesign rather than more parser-local tricks.
-
-## Optimization Plan 3
-
-Goal: stop optimizing against one synthetic shape. Add benchmark coverage first,
-then use those numbers to decide whether representation changes are worth the
-API cost.
-
-Benchmark work:
-
-1. Add a many-small-files case.
-   Parse hundreds or thousands of small config strings. This catches startup
-   overhead and root allocation behavior that the current large in-memory asset
-   benchmark can hide.
-
-2. Add a huge asset database case.
-   Parse one much larger asset-style file than `assets_10k`. This should model
-   the intended asset database use better and make allocator/locality issues
-   easier to see.
-
-3. Add escaped-string and long-string cases.
-   Measure strings with no escapes, many escapes, and longer paths/text blobs.
-   This gives a safer basis for revisiting string fast paths.
-
-4. Add deep nesting and wide-list cases.
-   Measure recursion overhead, list allocation behavior, and diagnostics
-   behavior on shapes unlike `(key value)` asset records.
-
-5. Add extraction/query benchmarks.
-   Measure repeated `find_child`, `extract_int`, `extract_float`, and
-   `extract_string` calls after parsing. This is separate from parse throughput
-   and should drive helper-level optimizations.
-
-Parser-local attempts:
-
-1. Revisit unescaped string fast path only after string benchmarks exist.
-   Keep it only if it improves large and string-heavy cases without making the
-   slow escaped path harder to audit.
-
-2. Try `std::from_chars` in extraction helpers.
-   This will not improve parse throughput, but may help asset database loading
-   if consumers query many numeric fields after parsing.
-
-3. Try top-level root reservation.
-   Count likely root expressions cheaply before parsing, or reserve a small
-   fixed number if measurements show repeated root vector growth.
-
-Representation attempts:
-
-1. Small-list storage.
-   Replace `std::vector<Value>` for very small lists with inline storage or a
-   low-overhead list wrapper. This targets the common `(key value)` shape but is
-   a public `Value` shape change unless wrapped carefully.
-
-2. Source-owned string views.
-   Let `ParseResult` own a source buffer and store atom/string slices into it
-   where possible. This could remove many string allocations, but changes
-   ownership semantics and needs careful escaping behavior for strings.
-
-3. Atom/key interning.
-   Intern repeated atoms such as `asset`, `id`, `path`, `type`, and `tags`.
-   This can reduce memory and speed comparisons, but should not force callers to
-   understand intern tables for normal use.
-
-4. Flat node arena.
-   Parse into contiguous nodes owned by `ParseResult` instead of recursive
-   `std::vector<Value>` allocations. This is the most plausible path to another
-   large speedup, but it is also the largest public representation decision.
-
-5. Compatibility wrapper over a new core.
-   If flat nodes or arenas are much faster, consider keeping convenience helpers
-   while changing the low-level tree type deliberately. Do not maintain two
-   unrelated parser APIs; the normal path should remain `parse(text)`.
-
-Plan 3 acceptance rule:
-
-1. Benchmark changes can be kept if they compile cleanly and measure useful,
-   distinct workloads.
-2. Parser-local optimizations must improve at least the workload they target and
-   must not materially regress the huge asset case.
-3. Representation changes need a larger bar: clear speed or memory wins, simple
-   ownership rules, and no second confusing parse API.
-
-## Optimization Plan 3 Status
-
-1. Expanded benchmark suite.
-   - Kept. Added many-small-files, huge asset database, plain/escaped string,
-     deep nesting, wide list, and extraction/query cases.
-
-2. Extraction helper numeric parsing.
-   - Kept. `extract_int` and `extract_float` now use `std::from_chars` after the
-     existing numeric shape checks.
-   - `query_assets_10k` improved from 6.52M queries/s to 9.93M-10.13M queries/s
-     in repeated runs.
-
-3. Representation changes.
-   - Started with source-owned `std::string_view` value text. `ParseResult`
-     owns copied source text plus decoded escaped strings; text views
-     remain valid while the owning result storage lives.
-   - Kept despite an `assets_1k` regression because repeated runs improved
-     `assets_10k`, `assets_50k`, `small_files_1k`, plain strings, wide lists,
-     and query throughput.
-   - Measured repeated results after the change: `assets_10k` 42.28-43.78
-     MiB/s, `assets_50k` 45.49-46.29 MiB/s, `strings_plain_5k` 258.90-276.39
-     MiB/s, `wide_10k` 121.04-125.83 MiB/s, `query_assets_10k` 10.20M-10.43M
-     queries/s.
-   - Small-list inline storage was not implemented directly because the current
-     public recursive `Value` type cannot contain inline `Value` children
-     without replacing `.list` with a wrapper type. The PMR allocation attempt
-     was used as the lower-risk allocation experiment for the current shape and
-     was rejected.
-
-4. Top-level root reservation.
-   - Reverted. Reserving one root slot did not clearly improve the many-small
-     files case and added no value for the dominant single-root data shapes.
-
-5. Atom hash lookup.
-   - Reverted. Adding a stored FNV-style atom hash increased parse work and did
-     not improve repeated `find_child`/`is_atom` queries. `query_assets_10k`
-     dropped to 9.57M-9.62M queries/s, below the source-view result.
-   - Full atom/key interning was not implemented after this result. Source-owned
-     views already removed atom string allocation, and the measured lookup
-     shortcut did not justify adding an intern table to the normal API.
-
-6. PMR list allocation.
-   - Reverted. Changing `Value::list` to `std::pmr::vector<Value>` backed by a
-     `ParseResult` monotonic resource preserved normal `.list` usage, but the
-     allocator indirection was slower across most parse cases and query
-     throughput dropped to 9.43M-9.53M queries/s.
-
-7. Flat node arena prototype.
-   - Kept as a benchmark-only prototype. It parses into contiguous flat nodes
-     with parent indices and source text views, without materializing the public
-     recursive `Value` tree.
-   - Measured `flat_assets_50k` at 164.51 MiB/s versus the public tree around
-     45-46 MiB/s in nearby runs.
-   - Measured `flat_wide_10k` at 277.66 MiB/s versus the public tree around
-     119-132 MiB/s in nearby runs.
-   - This proves there is still a large ceiling, but making it the normal
-     `parse(text)` path requires a deliberate public representation rewrite or a
-     compatibility wrapper over flat storage.
-
-8. String fast path.
-   - Covered by the source-owned view representation. Unescaped strings now
-     return views into parse-owned source text without decoding or allocating.
-     Escaped strings are still decoded into parse-owned storage.
-
-9. Compatibility wrapper.
-   - Not implemented in Plan 3. The flat benchmark proves a wrapper may be worth
-     designing, but it would be a new public representation decision rather than
-     a safe local optimization. Keep the current `parse(text)` API until that
-     rewrite is explicitly chosen.
-
-Plan 3 execution status:
-
-1. Benchmark coverage was added and kept.
-2. Parser-local attempts were tried, kept, or reverted with measurements.
-3. Representation attempts were either implemented, rejected with measurements,
-   or narrowed to a documented follow-up public representation decision.
-4. The remaining major opportunity is a flat-storage `Value` redesign. That is
-   outside incremental Plan 3 optimization and should be treated as a new design
-   task before changing the normal API.
+Older Plan 2 and Plan 3 design notes were moved to
+[performance-history.md](performance-history.md). Current work should use Plan 4
+status and Plan 5 below as the active context.
 
 ## Optimization Plan 4
 
@@ -471,3 +216,97 @@ Acceptance rules:
 7. File layout.
    - Split node traversal and extraction helpers into `src/node.cpp`; parser,
      tokenizer, and quoting remain in `src/sexp.cpp`.
+
+## Optimization Plan 5
+
+Goal: tune the flat-node parser without making the API clever. The major
+representation win is already done; Plan 5 should focus on measured targeted
+improvements and memory/allocation evidence.
+
+Benchmark and measurement work:
+
+1. Add memory/allocation metrics.
+   Throughput alone is no longer enough. Add a simple way to measure node count,
+   source bytes, decoded string count, and approximate storage bytes for each
+   benchmark case. Use this before packing node fields or adding indexes.
+
+2. Add owned-source benchmark cases.
+   Measure parsing from temporary/generated `std::string` data separately from
+   parsing string literals/views. This will show whether avoiding the source copy
+   is worth an API addition.
+
+3. Expand query benchmarks.
+   Add cases for repeated lookup of existing keys, missing keys, first key,
+   last key, and many keys per list. Current `query_assets_10k` only covers one
+   common pattern.
+
+4. Add escaped-heavy string benchmarks.
+   Current escaped strings are covered, but not enough to decide whether decoded
+   string storage deserves a different representation.
+
+Candidate optimizations:
+
+1. `parse_owned(std::string)`.
+   Add an overload that moves caller-owned source text into `ParseResult`
+   storage instead of copying it. This keeps the same parser and representation;
+   it is an ownership convenience, not a second parser.
+
+2. Query helper indexing.
+   Add optional or lazy per-list key indexes for `find_child` and `extract_*`.
+   This targets query-heavy consumers. Keep only if repeated lookup benchmarks
+   improve enough to justify the memory and implementation cost.
+
+3. Faster common child access.
+   `child_at(n)` walks sibling links. Try storing child ranges contiguously or
+   adding helper methods for `head()` and `second()` so common `(key value)`
+   helpers do not repeatedly walk siblings.
+
+4. Node field packing.
+   Current nodes store type, text view, parent, first child, last child, next
+   sibling, and child count. Measure whether parent or last child are needed
+   after parsing, and whether fields can be packed without hurting clarity.
+
+5. Root and node reservation.
+   Try estimating node count before parse or reserving based on source length.
+   The old top-level root reservation failed, but flat storage may benefit from
+   one large `nodes.reserve(...)`.
+
+6. Escaped string storage.
+   Decoded escaped strings currently live in `std::deque<std::string>`. Try a
+   contiguous decoded string buffer with views if escaped-heavy benchmarks show
+   it matters.
+
+7. Helper return shapes.
+   `extract_string` returns `std::string`, which copies. Consider adding
+   `extract_string_view` for callers that can respect `ParseResult` lifetime.
+   Keep `extract_string` for easy ownership.
+
+8. Diagnostics cost.
+   Line/column tracking is always maintained. Try measuring a diagnostics-light
+   parser mode only if benchmarks show line tracking is a real cost. Do not add
+   a confusing parser API just to skip diagnostics.
+
+Rejected-by-default unless evidence changes:
+
+1. A second parser path such as `parse_fast`.
+   Plan 4 intentionally kept one parser. Do not split behavior unless a concrete
+   use case proves the normal parser cannot satisfy it.
+
+2. Mandatory global atom interning.
+   The atom hash attempt did not help. Interning should stay off the table unless
+   memory metrics or query benchmarks show a clear need.
+
+3. Deep generic wrappers around `Node`.
+   Keep node handles explicit and debugger-friendly.
+
+Acceptance rules:
+
+1. `gsexp` build/tests pass.
+2. `glayout` build/tests pass after any API change.
+3. Expanded benchmark suite runs.
+4. Any kept optimization must improve its target benchmark and avoid material
+   regressions in `assets_10k`, `assets_50k`, and `wide_10k`.
+5. API additions must be small and explainable in the README. Prefer helper
+   additions over parallel parser concepts.
+6. File sizes should stay near the existing split. If `node.cpp`, `sexp.cpp`, or
+   benchmarks grow past the target range, split by responsibility.

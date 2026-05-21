@@ -5,6 +5,7 @@
 #include <chrono>
 #include <cstring>
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -16,6 +17,47 @@
 namespace {
 
 namespace data = bench_data;
+
+std::string read_cpu_model() {
+    std::ifstream cpuinfo("/proc/cpuinfo");
+    std::string line;
+    while (std::getline(cpuinfo, line)) {
+        std::string prefix = "model name";
+        if (line.compare(0, prefix.size(), prefix) != 0)
+            continue;
+
+        std::size_t colon = line.find(':');
+        if (colon == std::string::npos)
+            return line;
+        std::size_t value_start = colon + 1;
+        while (value_start < line.size() && line[value_start] == ' ')
+            ++value_start;
+        return line.substr(value_start);
+    }
+
+    return "unknown";
+}
+
+void print_benchmark_context() {
+    std::cout << "benchmark_context"
+              << " cpu_model=\"" << read_cpu_model() << "\""
+#if defined(__SSE4_2__)
+              << " sse4_2=compiled"
+#else
+              << " sse4_2=not_compiled"
+#endif
+#if defined(__AVX2__)
+              << " avx2=compiled"
+#else
+              << " avx2=not_compiled"
+#endif
+#if defined(GSEXP_HAVE_YYJSON)
+              << " yyjson=enabled"
+#else
+              << " yyjson=disabled"
+#endif
+              << "\n";
+}
 
 void print_storage_stats(const char* name, const gsexp::ParseResult& result) {
     gsexp::StorageStats stats = result.storage_stats();
@@ -412,6 +454,8 @@ void run_yyjson_query_case(const char* name,
 } // namespace
 
 int main() {
+    print_benchmark_context();
+
     std::string assets_10k = data::make_asset_data(10000);
     std::string assets_50k = data::make_asset_data(50000);
     std::string asset_database_5k = data::make_asset_database_data(5000);

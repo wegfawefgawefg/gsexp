@@ -23,38 +23,38 @@ Older optimization plans and detailed results are archived in
 
 ## Current Results
 
-Latest verified Plan 6 baseline results on this machine:
+Latest verified Plan 6 results on this machine:
 
 | Case | Result |
 | --- | ---: |
-| assets_10k | 196.44 MiB/s |
-| assets_50k | 164.50 MiB/s |
-| asset_database_5k | 226.71 MiB/s |
-| small_files_1k | 169.64 MiB/s |
-| strings_plain_5k | 434.98 MiB/s |
-| strings_escaped_5k | 272.33 MiB/s |
-| deep_1k | 177.27 MiB/s |
-| wide_10k | 251.18 MiB/s |
-| query_assets_10k | 14.05M queries/s |
-| query_first_10k | 11.69M queries/s |
-| query_last_10k | 7.55M queries/s |
-| query_missing_10k | 9.68M queries/s |
-| query_string_view_10k | 13.25M queries/s |
-| query_many_keys_last | 3.77M queries/s |
+| assets_10k | 197.07 MiB/s |
+| assets_50k | 169.41 MiB/s |
+| asset_database_5k | 228.28 MiB/s |
+| small_files_1k | 168.83 MiB/s |
+| strings_plain_5k | 421.41 MiB/s |
+| strings_escaped_5k | 272.65 MiB/s |
+| deep_1k | 174.92 MiB/s |
+| wide_10k | 246.84 MiB/s |
+| query_assets_10k | 14.82M queries/s |
+| query_first_10k | 11.46M queries/s |
+| query_last_10k | 7.58M queries/s |
+| query_missing_10k | 10.07M queries/s |
+| query_string_view_10k | 12.99M queries/s |
+| query_many_keys_last | 3.70M queries/s |
 
 Plan 6 yyjson comparison results:
 
 | Equivalent case | gsexp | yyjson | yyjson/gsexp |
 | --- | ---: | ---: | ---: |
-| assets_10k parse | 196.44 MiB/s | 642.10 MiB/s | 3.27x |
-| assets_50k parse | 164.50 MiB/s | 647.15 MiB/s | 3.93x |
-| asset_database_5k parse | 226.71 MiB/s | 759.81 MiB/s | 3.35x |
-| small_files_1k parse | 169.64 MiB/s | 567.68 MiB/s | 3.35x |
-| strings_plain_5k parse | 434.98 MiB/s | 1350.91 MiB/s | 3.11x |
-| strings_escaped_5k parse | 272.33 MiB/s | 1141.83 MiB/s | 4.19x |
-| wide_10k parse | 251.18 MiB/s | 800.63 MiB/s | 3.19x |
-| assets_10k lookup | 14.05M queries/s | 61.12M queries/s | 4.35x |
-| many_keys_last lookup | 3.77M queries/s | 7.75M queries/s | 2.05x |
+| assets_10k parse | 197.07 MiB/s | 659.71 MiB/s | 3.35x |
+| assets_50k parse | 169.41 MiB/s | 668.99 MiB/s | 3.95x |
+| asset_database_5k parse | 228.28 MiB/s | 752.66 MiB/s | 3.30x |
+| small_files_1k parse | 168.83 MiB/s | 553.86 MiB/s | 3.28x |
+| strings_plain_5k parse | 421.41 MiB/s | 1375.22 MiB/s | 3.26x |
+| strings_escaped_5k parse | 272.65 MiB/s | 1141.30 MiB/s | 4.19x |
+| wide_10k parse | 246.84 MiB/s | 821.01 MiB/s | 3.33x |
+| assets_10k lookup | 14.82M queries/s | 66.00M queries/s | 4.45x |
+| many_keys_last lookup | 3.70M queries/s | 7.90M queries/s | 2.13x |
 
 These are equivalent data shapes, not byte-identical files. The JSON fixtures
 are generated beside the S-expression fixtures and measured by each format's
@@ -62,6 +62,12 @@ own source byte size. `asset_database_5k` is the first real-ish generated asset
 database case: mixed record types, nested fields, optional fields, repeated
 keys, and comments on the S-expression side. yyjson is fetched only for
 benchmark builds.
+
+Benchmark context from the latest run:
+
+```text
+benchmark_context cpu_model="Intel(R) Core(TM) i5-3320M CPU @ 2.60GHz" sse4_2=not_compiled avx2=not_compiled yyjson=enabled
+```
 
 Important Plan 5 retained changes:
 
@@ -76,6 +82,23 @@ Important Plan 5 retained changes:
 7. Retained node fields are packed; `parent` and retained `last_child` were
    removed from `NodeData`.
 8. Decoded escaped strings live in one parse-owned byte arena.
+
+Important Plan 6 retained changes:
+
+1. Benchmark output now records CPU model, compiled SIMD context, and yyjson
+   availability.
+2. yyjson comparison fixtures are generated beside the S-expression fixtures.
+3. A real-ish mixed asset database fixture is included for both formats.
+4. Node reservation now uses a bounded density sample only when it is clearly
+   lower than the old `source.size() / 4` reserve. Dense and small inputs keep
+   the old reserve.
+
+Plan 6 optimization attempt results:
+
+| Attempt | Result |
+| --- | --- |
+| Density-aware node reserve, first version | Rejected. It reduced memory on string-heavy files, but changed dense/small/deep reserves too aggressively and hurt `small_files_1k` and `deep_1k`. |
+| Density-aware node reserve, gated version | Kept. `strings_plain_5k` retained storage dropped from about 10.1 MiB to 3.0 MiB and `strings_escaped_5k` dropped from about 12.3 MiB to 4.3 MiB. Parse speed was mostly neutral, with `strings_plain_5k` about 3% slower on the latest run. |
 
 ## Optimization Plan 6
 

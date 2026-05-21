@@ -5,6 +5,11 @@
 namespace gsexp {
 namespace {
 
+constexpr std::size_t reserve_sample_bytes = 16 * 1024;
+constexpr std::size_t reserve_min_nodes = 64;
+constexpr std::size_t reserve_slack_nodes = 16;
+constexpr double reserve_growth_slack = 1.08;
+
 bool is_space(char c) {
     return c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == '\v' || c == '\f';
 }
@@ -15,6 +20,76 @@ bool is_digit(char c) {
 
 bool is_delimiter(char c) {
     return is_space(c) || c == '(' || c == ')';
+}
+
+std::size_t estimate_node_reserve(std::string_view source) {
+    if (source.empty())
+        return 0;
+
+    std::size_t legacy_reserve = source.size() / 4;
+    if (source.size() < 64 * 1024)
+        return legacy_reserve;
+
+    std::size_t sample_size = source.size();
+    if (sample_size > reserve_sample_bytes)
+        sample_size = reserve_sample_bytes;
+
+    std::size_t tokens = 0;
+    std::size_t index = 0;
+    while (index < sample_size) {
+        char c = source[index];
+        if (is_space(c) || c == ')') {
+            ++index;
+            continue;
+        }
+
+        if (c == ';' || c == '#') {
+            while (index < sample_size && source[index] != '\n')
+                ++index;
+            continue;
+        }
+
+        if (c == '(') {
+            ++tokens;
+            ++index;
+            continue;
+        }
+
+        if (c == '"') {
+            ++tokens;
+            ++index;
+            while (index < sample_size) {
+                char ch = source[index++];
+                if (ch == '\\' && index < sample_size) {
+                    ++index;
+                    continue;
+                }
+                if (ch == '"')
+                    break;
+                if (ch == '\n' || ch == '\r')
+                    break;
+            }
+            continue;
+        }
+
+        ++tokens;
+        while (index < sample_size && !is_delimiter(source[index]))
+            ++index;
+    }
+
+    if (tokens == 0)
+        return reserve_min_nodes;
+
+    double scaled = static_cast<double>(tokens) * static_cast<double>(source.size()) /
+                    static_cast<double>(sample_size);
+    std::size_t estimate = static_cast<std::size_t>(scaled * reserve_growth_slack) + reserve_slack_nodes;
+    if (estimate < reserve_min_nodes)
+        estimate = reserve_min_nodes;
+
+    if (estimate * 2 > legacy_reserve)
+        return legacy_reserve;
+
+    return estimate;
 }
 
 void advance_position(char c, int& line, int& column) {
@@ -42,8 +117,9 @@ class Parser {
   public:
     explicit Parser(std::string source) : storage(std::make_shared<ParseStorage>()) {
         storage->source = std::move(source);
-        storage->nodes.reserve(storage->source.size() / 4);
-        last_children.reserve(storage->source.size() / 4);
+        std::size_t node_reserve = estimate_node_reserve(storage->source);
+        storage->nodes.reserve(node_reserve);
+        last_children.reserve(node_reserve);
         text = storage->source;
     }
 

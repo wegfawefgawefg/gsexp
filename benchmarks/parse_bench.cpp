@@ -290,6 +290,7 @@ double run_query_once(gsexp::Node root, int iterations, QueryMode mode) {
                 first = false;
                 continue;
             }
+            gsexp::FormView asset_form(asset);
             if (mode == QueryMode::TextOnly) {
                 bool field_first = true;
                 for (gsexp::Node field : asset.children()) {
@@ -322,10 +323,10 @@ double run_query_once(gsexp::Node root, int iterations, QueryMode mode) {
                     std::exit(1);
                 }
             } else if (mode == QueryMode::Common) {
-                std::optional<int> id = gsexp::extract_int(asset, "id");
-                std::optional<float> x = gsexp::extract_float(asset, "x");
-                std::optional<float> y = gsexp::extract_float(asset, "y");
-                std::optional<std::string> path = gsexp::extract_string(asset, "path");
+                std::optional<int> id = asset_form.get_int("id");
+                std::optional<float> x = asset_form.get_float("x");
+                std::optional<float> y = asset_form.get_float("y");
+                std::optional<std::string_view> path = asset_form.get_string_view("path");
                 if (!id || !x || !y || !path) {
                     std::cerr << "query benchmark missing expected field\n";
                     std::exit(1);
@@ -333,28 +334,28 @@ double run_query_once(gsexp::Node root, int iterations, QueryMode mode) {
                 sink += static_cast<double>(*id) + static_cast<double>(*x) +
                         static_cast<double>(*y) + static_cast<double>(path->size());
             } else if (mode == QueryMode::First) {
-                std::optional<int> id = gsexp::extract_int(asset, "id");
+                std::optional<int> id = asset_form.get_int("id");
                 if (!id) {
                     std::cerr << "first query benchmark missing id\n";
                     std::exit(1);
                 }
                 sink += static_cast<double>(*id);
             } else if (mode == QueryMode::Last) {
-                std::optional<float> h = gsexp::extract_float(asset, "h");
+                std::optional<float> h = asset_form.get_float("h");
                 if (!h) {
                     std::cerr << "last query benchmark missing h\n";
                     std::exit(1);
                 }
                 sink += static_cast<double>(*h);
             } else if (mode == QueryMode::Missing) {
-                std::optional<int> missing = gsexp::extract_int(asset, "missing");
+                std::optional<int> missing = asset_form.get_int("missing");
                 if (missing) {
                     std::cerr << "missing query benchmark found unexpected field\n";
                     std::exit(1);
                 }
                 sink += 1.0;
             } else if (mode == QueryMode::StringView) {
-                std::optional<std::string_view> path = gsexp::extract_string_view(asset, "path");
+                std::optional<std::string_view> path = asset_form.get_string_view("path");
                 if (!path) {
                     std::cerr << "string_view query benchmark missing path\n";
                     std::exit(1);
@@ -362,7 +363,7 @@ double run_query_once(gsexp::Node root, int iterations, QueryMode mode) {
                 sink += static_cast<double>(path->size());
             } else {
                 if (mode == QueryMode::FindOnly) {
-                    gsexp::Node node = gsexp::find_child(asset, "key_23");
+                    gsexp::Node node = asset_form.find("key_23");
                     if (!node.valid()) {
                         std::cerr << "find-only query benchmark missing key_23\n";
                         std::exit(1);
@@ -371,7 +372,7 @@ double run_query_once(gsexp::Node root, int iterations, QueryMode mode) {
                     continue;
                 }
                 if (mode == QueryMode::ChildAtValue) {
-                    gsexp::Node node = gsexp::find_child(asset, "key_23");
+                    gsexp::Node node = asset_form.find("key_23");
                     if (!node.valid()) {
                         std::cerr << "child-at query benchmark missing key_23\n";
                         std::exit(1);
@@ -384,7 +385,7 @@ double run_query_once(gsexp::Node root, int iterations, QueryMode mode) {
                     sink += static_cast<double>(value.text().size());
                     continue;
                 }
-                std::optional<int> value = gsexp::extract_int(asset, "key_23");
+                std::optional<int> value = asset_form.get_int("key_23");
                 if (!value) {
                     std::cerr << "many-key query benchmark missing key_23\n";
                     std::exit(1);

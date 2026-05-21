@@ -10,6 +10,7 @@ option(GSEXP_BUILD_BENCHMARKS "Build benchmark programs" OFF)
 option(GSEXP_BENCHMARK_YYJSON "Fetch yyjson for benchmark comparison" ON)
 
 add_library(gsexp
+    src/form_view.cpp
     src/node.cpp
     src/sexp.cpp
     src/tokenize.cpp

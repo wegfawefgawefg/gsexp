@@ -25,10 +25,10 @@ int main() {
         return 1;
     }
 
-    gsexp::Node root = result.root(0);
-    std::optional<std::string> name = gsexp::extract_string(root, "name");
-    std::optional<int> width = gsexp::extract_int(root, "width");
-    std::optional<float> scale = gsexp::extract_float(root, "scale");
+    gsexp::FormView root(result.root(0));
+    std::optional<std::string> name = root.get_string("name");
+    std::optional<int> width = root.get_int("width");
+    std::optional<float> scale = root.get_float("scale");
 
     std::cout << "name=" << (name ? *name : "<missing>") << "\n";
     std::cout << "width=" << (width ? std::to_string(*width) : "<missing>") << "\n";

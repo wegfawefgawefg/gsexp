@@ -96,6 +96,7 @@ struct StorageStats {
 };
 
 class Node;
+class FormView;
 class ChildIterator;
 class ChildRange;
 
@@ -133,11 +134,7 @@ class Node {
   private:
     friend class ChildIterator;
     friend class ChildRange;
-    friend Node find_child(Node list, std::string_view symbol);
-    friend std::optional<int> extract_int(Node list, std::string_view symbol);
-    friend std::optional<float> extract_float(Node list, std::string_view symbol);
-    friend std::optional<std::string> extract_string(Node list, std::string_view symbol);
-    friend std::optional<std::string_view> extract_string_view(Node list, std::string_view symbol);
+    friend class FormView;
 
     const NodeData* data() const;
 
@@ -179,6 +176,27 @@ class ChildRange {
     std::uint32_t first = invalid_node;
 };
 
+class FormView {
+  public:
+    FormView() = default;
+    explicit FormView(Node node);
+
+    bool valid() const;
+    Node node() const;
+    Node head() const;
+    Node arg(std::size_t index) const;
+    Node find(std::string_view head) const;
+    Node find_arg(std::string_view head, std::size_t index) const;
+
+    std::optional<int> get_int(std::string_view head) const;
+    std::optional<float> get_float(std::string_view head) const;
+    std::optional<std::string> get_string(std::string_view head) const;
+    std::optional<std::string_view> get_string_view(std::string_view head) const;
+
+  private:
+    Node form;
+};
+
 bool looks_like_integer(std::string_view text);
 bool looks_like_float(std::string_view text);
 
@@ -188,12 +206,6 @@ std::vector<Token> tokenize(std::string_view text, std::vector<Diagnostic>* diag
 
 bool is_atom(Node node, std::string_view atom);
 bool is_symbol(Node node, std::string_view symbol);
-Node find_child(Node list, std::string_view symbol);
-
-std::optional<int> extract_int(Node list, std::string_view symbol);
-std::optional<float> extract_float(Node list, std::string_view symbol);
-std::optional<std::string> extract_string(Node list, std::string_view symbol);
-std::optional<std::string_view> extract_string_view(Node list, std::string_view symbol);
 
 std::string quote_string(std::string_view text);
 

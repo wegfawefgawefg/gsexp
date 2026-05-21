@@ -24,13 +24,14 @@ void test_parse_and_extract() {
     require(result.root_count() == 1, "parse one root");
 
     gsexp::Node root = result.root(0);
-    gsexp::Node width_node = gsexp::find_child(root, "width");
+    gsexp::FormView settings(root);
+    gsexp::Node width_node = settings.find("width");
     require(width_node.valid(), "width node exists");
-    require(width_node.second().type() == gsexp::ValueType::Atom, "numeric atom stays atom");
-    require(gsexp::extract_string(root, "name") == "demo", "extract string");
-    require(gsexp::extract_string_view(root, "name") == "demo", "extract string view");
-    require(gsexp::extract_int(root, "width") == 1280, "extract int");
-    require(gsexp::extract_float(root, "scale").has_value(), "extract float");
+    require(settings.find_arg("width", 0).type() == gsexp::ValueType::Atom, "numeric atom stays atom");
+    require(settings.get_string("name") == "demo", "get string");
+    require(settings.get_string_view("name") == "demo", "get string view");
+    require(settings.get_int("width") == 1280, "get int");
+    require(settings.get_float("scale").has_value(), "get float");
 
     int children = 0;
     for (gsexp::Node child : root.children()) {
@@ -46,15 +47,16 @@ void test_parse_result_owns_text() {
 
     gsexp::ParseResult copied = result;
     gsexp::Node copied_root = copied.root(0);
-    require(gsexp::extract_string(copied_root, "name") == "demo", "copied result keeps string text");
-    require(gsexp::extract_string(copied_root, "kind") == "atom", "copied result keeps atom text");
+    gsexp::FormView copied_form(copied_root);
+    require(copied_form.get_string("name") == "demo", "copied result keeps string text");
+    require(copied_form.get_string("kind") == "atom", "copied result keeps atom text");
 }
 
 void test_parse_owned() {
     std::string text = "(root (name \"owned\"))";
     gsexp::ParseResult result = gsexp::parse_owned(std::move(text));
     require(result.ok, "parse owned source string");
-    require(gsexp::extract_string(result.root(0), "name") == "owned", "owned source keeps text");
+    require(gsexp::FormView(result.root(0)).get_string("name") == "owned", "owned source keeps text");
 }
 
 void test_escaped_string_storage() {
@@ -62,14 +64,15 @@ void test_escaped_string_storage() {
     require(result.ok, "parse escaped string");
 
     gsexp::Node root = result.root(0);
-    require(gsexp::extract_string(root, "text") == "line\nquoted\"text", "escaped string is decoded");
+    require(gsexp::FormView(root).get_string("text") == "line\nquoted\"text",
+            "escaped string is decoded");
 }
 
 void test_int_range() {
     std::string out_of_range = std::to_string(std::numeric_limits<int>::max()) + "000";
     gsexp::ParseResult result = gsexp::parse("(root (value " + out_of_range + "))");
     require(result.ok, "parse out-of-range int");
-    require(!gsexp::extract_int(result.root(0), "value").has_value(), "reject out-of-range int");
+    require(!gsexp::FormView(result.root(0)).get_int("value").has_value(), "reject out-of-range int");
 }
 
 void test_numeric_rejections() {
@@ -86,15 +89,15 @@ void test_numeric_rejections() {
 )");
 
     require(result.ok, "parse numeric rejection input");
-    gsexp::Node root = result.root(0);
-    require(gsexp::extract_int(root, "good_int") == 42, "accept plus int");
-    require(!gsexp::extract_int(root, "bad_int").has_value(), "reject int suffix");
-    require(!gsexp::extract_int(root, "sign_only").has_value(), "reject sign-only int");
-    require(gsexp::extract_float(root, "good_float").has_value(), "accept plus float");
-    require(!gsexp::extract_float(root, "bad_float").has_value(), "reject float suffix");
-    require(!gsexp::extract_float(root, "bad_exp").has_value(), "reject incomplete exponent");
-    require(!gsexp::extract_float(root, "bad_nan").has_value(), "reject nan float");
-    require(!gsexp::extract_float(root, "bad_inf").has_value(), "reject inf float");
+    gsexp::FormView root(result.root(0));
+    require(root.get_int("good_int") == 42, "accept plus int");
+    require(!root.get_int("bad_int").has_value(), "reject int suffix");
+    require(!root.get_int("sign_only").has_value(), "reject sign-only int");
+    require(root.get_float("good_float").has_value(), "accept plus float");
+    require(!root.get_float("bad_float").has_value(), "reject float suffix");
+    require(!root.get_float("bad_exp").has_value(), "reject incomplete exponent");
+    require(!root.get_float("bad_nan").has_value(), "reject nan float");
+    require(!root.get_float("bad_inf").has_value(), "reject inf float");
 }
 
 void test_failed_escaped_string_rollback() {

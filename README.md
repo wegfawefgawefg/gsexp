@@ -62,21 +62,22 @@ if (!result.ok) {
     // Print result.diagnostics.
 }
 
-gsexp::Node root = result.root(0);
-std::optional<std::string> name = gsexp::extract_string(root, "name");
-std::optional<int> width = gsexp::extract_int(root, "width");
-std::optional<float> scale = gsexp::extract_float(root, "scale");
+gsexp::FormView settings(result.root(0));
+std::optional<std::string> name = settings.get_string("name");
+std::optional<int> width = settings.get_int("width");
+std::optional<float> scale = settings.get_float("scale");
 
-for (gsexp::Node child : root.children()) {
+for (gsexp::Node child : settings.node().children()) {
     // Inspect child.type(), child.text(), or child.children().
 }
 ```
 
 Use `parse_owned(std::string)` when the caller already has a loaded source
-string and wants to move it into the parse result. Use `extract_string_view` when
-the caller can keep the owning `ParseResult` alive and wants to avoid copying
-string values. Use `storage_stats()` for diagnostics or benchmarking; it reports
-approximate retained storage and is not intended as an exact heap profiler.
+string and wants to move it into the parse result. Use
+`FormView::get_string_view` when the caller can keep the owning `ParseResult`
+alive and wants to avoid copying string values. Use `storage_stats()` for
+diagnostics or benchmarking; it reports approximate retained storage and is not
+intended as an exact heap profiler.
 
 Do not store `Node` handles or `Node::text()` views after the owning
 `ParseResult` is destroyed.

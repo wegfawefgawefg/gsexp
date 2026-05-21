@@ -1,6 +1,7 @@
 #include "gsexp/sexp.hpp"
 
 #include <algorithm>
+#include <cstring>
 #include <utility>
 
 namespace gsexp {
@@ -27,6 +28,31 @@ std::string_view node_text(const ParseStorage& storage, const NodeData& node) {
     if (size > available)
         size = available;
     return std::string_view(storage.source.data() + node.text_offset, size);
+}
+
+bool node_text_equals(const ParseStorage& storage, const NodeData& node, std::string_view text) {
+    if (node.text_size != text.size())
+        return false;
+    if (text.empty())
+        return true;
+
+    if (node.text_storage == TextStorage::Decoded) {
+        if (node.text_offset > storage.decoded_text.size())
+            return false;
+        std::size_t available = storage.decoded_text.size() - node.text_offset;
+        if (node.text_size > available)
+            return false;
+        const char* data = storage.decoded_text.data() + node.text_offset;
+        return std::memcmp(data, text.data(), text.size()) == 0;
+    }
+
+    if (node.text_offset > storage.source.size())
+        return false;
+    std::size_t available = storage.source.size() - node.text_offset;
+    if (node.text_size > available)
+        return false;
+    const char* data = storage.source.data() + node.text_offset;
+    return std::memcmp(data, text.data(), text.size()) == 0;
 }
 
 } // namespace
@@ -151,7 +177,8 @@ bool Node::is_list() const {
 }
 
 bool Node::is_atom(std::string_view atom) const {
-    return valid() && type() == ValueType::Atom && text() == atom;
+    const NodeData* node = data();
+    return node && node->type == ValueType::Atom && node_text_equals(*storage, *node, atom);
 }
 
 bool Node::is_string() const {

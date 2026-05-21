@@ -67,6 +67,7 @@ Plan 3 optimization attempts.
 | 2026-05-21 | Reserve one top-level root slot | `small_files_1k` | Reverted; no clear gain and parse cases were noisy/worse |
 | 2026-05-21 | Source-owned `std::string_view` value text | `assets_50k`, string-heavy, wide lists | Kept; large/string-heavy wins, `assets_1k` regressed |
 | 2026-05-21 | Store atom text hashes for faster `is_atom` rejection | `query_assets_10k` | Reverted; query and large parse cases were slower |
+| 2026-05-21 | Store list vectors in `std::pmr::monotonic_buffer_resource` | Allocation-heavy parse cases | Reverted; slower across most expanded benchmarks |
 
 ## Optimization Plan 2
 
@@ -281,3 +282,9 @@ Plan 3 acceptance rule:
    - Reverted. Adding a stored FNV-style atom hash increased parse work and did
      not improve repeated `find_child`/`is_atom` queries. `query_assets_10k`
      dropped to 9.57M-9.62M queries/s, below the source-view result.
+
+6. PMR list allocation.
+   - Reverted. Changing `Value::list` to `std::pmr::vector<Value>` backed by a
+     `ParseResult` monotonic resource preserved normal `.list` usage, but the
+     allocator indirection was slower across most parse cases and query
+     throughput dropped to 9.43M-9.53M queries/s.

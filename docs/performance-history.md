@@ -79,3 +79,72 @@ Conclusion:
 The recursive tree was the main remaining bottleneck. The flat-node prototype
 justified Plan 4, where the normal public parser moved to flat storage and
 `Node` handles.
+
+## Plan 4 Summary
+
+Plan 4 replaced the recursive public `Value` tree with flat parse-owned storage
+and lightweight `Node` handles. The old `Value` API was removed instead of
+maintaining a compatibility layer.
+
+Kept:
+
+1. `ParseResult` owns contiguous `NodeData` records, copied source text, and
+   decoded escaped string storage.
+2. `ParseResult::root(index)` returns a `Node` handle.
+3. Child traversal uses `children()`, `first_child()`, `next_sibling()`, and
+   `child_at()`.
+4. Config helpers work on `Node`: `find_child`, `extract_int`,
+   `extract_float`, and `extract_string`.
+5. `glayout` was migrated to the `Node` API.
+
+Measured after the rewrite:
+
+| Case | Result |
+| --- | ---: |
+| assets_10k | 59.42 MiB/s |
+| assets_50k | 87.08 MiB/s |
+| wide_10k | 160.36 MiB/s |
+| strings_plain_5k | 371.92 MiB/s |
+
+## Plan 5 Summary
+
+Plan 5 tuned the flat-node parser while keeping the public API small.
+
+Kept:
+
+1. Storage metrics in `storage_stats()` and benchmark output.
+2. `parse_owned(std::string)` for moving already-loaded source into the parse
+   result.
+3. Expanded query benchmarks for first, last, missing, string-view, and wide-key
+   lookups.
+4. `head()` and `second()` helpers for common `(key value)` access.
+5. `extract_string_view` for callers that can keep `ParseResult` alive.
+6. `nodes.reserve(source.size() / 4)` for parser storage.
+7. Direct `NodeData` scans in `find_child`.
+8. Lazy child indexes for lists with at least 16 children.
+9. Packed retained `NodeData` fields; `parent` and retained `last_child` were
+   removed.
+10. A parse-owned decoded string byte arena for escaped strings.
+
+Rejected:
+
+1. `source.size() / 8`, `source.size() / 6`, and exact pre-scan node reserve
+   strategies.
+2. Lazy child indexing at threshold 8.
+3. Bulk horizontal whitespace and comment skipping.
+4. Diagnostics-off parser mode.
+5. A second public parser path.
+6. Mandatory global atom interning.
+
+Final verified Plan 5 results:
+
+| Case | Result |
+| --- | ---: |
+| assets_10k | 206.53 MiB/s |
+| assets_50k | 171.93 MiB/s |
+| small_files_1k | 175.52 MiB/s |
+| strings_plain_5k | 432.42 MiB/s |
+| strings_escaped_5k | 283.96 MiB/s |
+| wide_10k | 255.03 MiB/s |
+| query_assets_10k | 14.88M queries/s |
+| query_many_keys_last | 3.70M queries/s |

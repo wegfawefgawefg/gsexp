@@ -64,6 +64,7 @@ Plan 3 optimization attempts.
 | --- | --- | --- | --- |
 | 2026-05-21 | Add expanded benchmark suite | Measurement coverage | Kept |
 | 2026-05-21 | Use `std::from_chars` in extraction helpers | `query_assets_10k` | Kept; improved from 6.52M to 9.93M-10.13M queries/s |
+| 2026-05-21 | Reserve one top-level root slot | `small_files_1k` | Reverted; no clear gain and parse cases were noisy/worse |
 
 ## Optimization Plan 2
 
@@ -261,3 +262,7 @@ Plan 3 acceptance rule:
 3. Representation changes.
    - Not started yet. The next candidate should be chosen using the expanded
      benchmark suite, not just `assets_1k` and `assets_10k`.
+
+4. Top-level root reservation.
+   - Reverted. Reserving one root slot did not clearly improve the many-small
+     files case and added no value for the dominant single-root data shapes.
